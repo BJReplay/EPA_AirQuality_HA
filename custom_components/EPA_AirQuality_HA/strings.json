@@ -1,0 +1,22 @@
+{
+    "config": {
+      "step": {
+        "user": {
+      "description": "Provide the Site ID to retrieve air quality for.",
+          "data": {
+            "suburb": "Suburb",
+            "site_id": "Site ID"
+          }
+        }
+      },
+      "error": {
+        "invalid_city_state": "Invalid City/State combination",
+        "api_error": "Unrecognized error from EPA Envirofacts API",
+        "unknown": "[%key:common::config_flow::error::unknown%]"
+      },
+      "abort": {
+        "already_configured": "[%key:common::config_flow::abort::already_configured_device%]"
+      }
+    }
+  }
+  
