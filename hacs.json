@@ -1,6 +1,5 @@
 {
-    "name": "EPA Victoria Air Quality",
-    "country": "AU",
-    "render_readme": true
-  }
-  
+  "name": "EPA Victoria Air Quality",
+  "country": "AU",
+  "render_readme": true
+}
