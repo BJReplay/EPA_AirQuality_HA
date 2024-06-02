@@ -1,0 +1,19 @@
+{
+    "config": {
+        "step": {
+            "user": {
+                "data": {
+                    "api_key": "API Key",
+                    "site_id": "Site ID"
+                },
+                "description": {
+                    "api_key": "Enter your API key provided by EPA Victoria.",
+                    "site_id": "Enter the Site ID for the location you want to monitor."
+                },
+                "error": {
+                    "auth": "Invalid API key or Site ID"
+                }
+            }
+        }
+    }
+}
