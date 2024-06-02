@@ -28,6 +28,10 @@ class EPAVictoriaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Required("site_id"): str,
             }),
             errors=errors,
+            description_placeholders={
+                "api_key": "Enter your API key provided by EPA Victoria.",
+                "site_id": "Enter the Site ID for the location you want to monitor."
+            }
         )
 
     async def _test_api(self, api_key, site_id):
