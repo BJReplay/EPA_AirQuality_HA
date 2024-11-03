@@ -4,6 +4,7 @@
 
 import logging
 import traceback
+import os
 from datetime import timedelta
 import asyncio
 
@@ -65,6 +66,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         entry.options[CONF_API_KEY],
         entry.options[CONF_SITE_ID],
         EPA_URL,
+        hass.config.path(f"{os.path.abspath(os.path.join(os.path.dirname(__file__) ,'../..'))}/epaapi.json"),
         tz,
     )
 
