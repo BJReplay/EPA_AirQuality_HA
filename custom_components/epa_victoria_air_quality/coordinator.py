@@ -58,6 +58,14 @@ class EPAVicUpdateCoordinator(DataUpdateCoordinator):
 
         super().__init__(hass, _LOGGER, name=DOMAIN)
 
+    async def _async_update_data(self):
+        """Update data via library.
+
+        Returns:
+            list: Current air quality detail list.
+        """
+        return self.epa.get_data()
+
     async def setup(self) -> bool:
         """Set up time change tracking."""
         self._last_day = dt.now(self.epa.options.tz).day
@@ -164,11 +172,6 @@ class EPAVicUpdateCoordinator(DataUpdateCoordinator):
 
     async def __quality_update(self, force: bool=False):
         """Get updated quality data."""
-
-        _LOGGER.debug("Checking for stale usage cache")
-        if self.epa.is_stale_usage_cache():
-            _LOGGER.warning("Usage cache reset time is stale, last reset was more than 24-hours ago, resetting API usage")
-            await self.epa.reset_usage_cache()
 
         if len(self._intervals) > 0:
             next_update = self._intervals[0].astimezone(self.epa.options.tz)

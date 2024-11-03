@@ -194,6 +194,14 @@ class EPAApi: # pylint: disable=R0904
         self._config_dir = dirname(self._filename)
         _LOGGER.debug("Configuration directory is %s", self._config_dir)
 
+    def get_data(self) -> dict[str, Any]:
+        """Return the data dictionary.
+
+        Returns:
+            list: list of air quality readings.
+        """
+        return self._data
+
     def get_real_now_utc(self) -> dt:
         """Datetime helper.
 
