@@ -131,6 +131,7 @@ class ConnectionOptions:
     api_key: str
     site_id: str
     host: str
+    file_path: str
     tz: timezone
 
 class EPAApi: # pylint: disable=R0904
@@ -268,6 +269,7 @@ class EPAApi: # pylint: disable=R0904
             self.options.api_key,
             self.options.site_id,
             self.options.host,
+            self.options.file_path,
             self.options.tz,
         )
 
