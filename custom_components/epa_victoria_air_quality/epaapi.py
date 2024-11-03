@@ -194,6 +194,14 @@ class EPAApi: # pylint: disable=R0904
         self._config_dir = dirname(self._filename)
         _LOGGER.debug("Configuration directory is %s", self._config_dir)
 
+    def get_real_now_utc(self) -> dt:
+        """Datetime helper.
+
+        Returns:
+            datetime: The UTC date and time representing now including seconds/microseconds.
+        """
+        return dt.now(self._tz).astimezone(timezone.utc)
+
     def get_day_start_utc(self, future: int=0) -> dt:
         """Datetime helper.
 
