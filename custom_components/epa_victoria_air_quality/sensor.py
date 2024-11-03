@@ -1,132 +1,205 @@
-import logging
-import requests
+"""Support for EPA (Victoria) Air Quality Sensors."""
+
+# pylint: disable=C0301, C0304, E0401, W0718, C0301
+
+from __future__ import annotations
+
+from typing import Optional
+
+from datetime import datetime as dt
 from datetime import timedelta
 
-from homeassistant.components.sensor import SensorEntity
-from homeassistant.const import (
-    CONF_API_KEY,
-    CONF_SITE_ID,
-    STATE_CLASS_MEASUREMENT,
+import logging
+import traceback
+from enum import Enum
+
+from homeassistant.components.sensor import ( # type: ignore
+    SensorDeviceClass,
+    SensorEntity,
+    SensorEntityDescription,
+    SensorStateClass,
+)
+from homeassistant.config_entries import ConfigEntry # type: ignore
+from homeassistant.const import ( # type: ignore
+    ATTR_CONFIGURATION_URL,
+    ATTR_IDENTIFIERS,
+    ATTR_MANUFACTURER,
+    ATTR_MODEL,
+    ATTR_NAME,
+    ATTR_SW_VERSION,
     CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
 )
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
-from homeassistant.helpers.entity import DeviceInfo
 
-from .const import DOMAIN
+from homeassistant.helpers.device_registry import DeviceEntryType # type: ignore
+from homeassistant.helpers.update_coordinator import CoordinatorEntity # type: ignore
+
+
+from .const import (
+    ATTR_ENTRY_TYPE,
+    ATTRIBUTION,
+    DOMAIN,
+    MANUFACTURER,
+    TYPE_AQI_PM25,
+    TYPE_AQI_PM25_24H,
+    TYPE_PM25,
+    TYPE_PM25_24H,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
-SCAN_INTERVAL = timedelta(minutes=30)
-
-SENSOR_TYPES = {
-    "hourly_average": {
-        "name": "Hourly Average",
-        "unit": CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
-        "device_class": "pm25",
-        "icon": "mdi:chemical-weapon",
-        "value_template": "{{ value_json['parameters'][0]['timeSeriesReadings'][0]['readings'][0]['averageValue'] }}"
-    },
-    "hourly_health_advice": {
-        "name": "Hourly Health Advice",
-        "unit": None,
-        "device_class": None,
-        "icon": "mdi:information-outline",
-        "value_template": "{{ value_json['parameters'][0]['timeSeriesReadings'][0]['readings'][0]['healthAdvice'] }}"
-    },
-    "daily_average": {
-        "name": "Daily Average",
-        "unit": CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
-        "device_class": "pm25",
-        "icon": "mdi:chemical-weapon",
-        "value_template": "{{ value_json['parameters'][0]['timeSeriesReadings'][1]['readings'][0]['averageValue'] }}"
-    },
-    "daily_health_advice": {
-        "name": "Daily Health Advice",
-        "unit": None,
-        "device_class": None,
-        "icon": "mdi:information-outline",
-        "value_template": "{{ value_json['parameters'][0]['timeSeriesReadings'][1]['readings'][0]['healthAdvice'] }}"
-    },
+SENSORS: dict[str, SensorEntityDescription] = {
+    TYPE_AQI_PM25: SensorEntityDescription(
+        key=TYPE_AQI_PM25,
+        translation_key="pm25_aqi",
+        device_class=SensorDeviceClass.AQI,
+        name="Hourly Health Advice",
+        icon="mdi:information-outline",
+        state_class=None,
+        value_template="{{ value_json['parameters'][0]['timeSeriesReadings'][0]['readings'][0]['healthAdvice'] }}"
+    ),
+    TYPE_AQI_PM25_24H: SensorEntityDescription(
+        key=TYPE_AQI_PM25_24H,
+        translation_key="pm25_aqi_24h_average",
+        device_class=SensorDeviceClass.AQI,
+        name="Daily Health Advice",
+        icon="mdi:information-outline",
+        state_class=None,
+        value_template="{{ value_json['parameters'][0]['timeSeriesReadings'][1]['readings'][0]['healthAdvice'] }}"
+    ),
+    TYPE_PM25: SensorEntityDescription(
+        key=TYPE_PM25,
+        translation_key="pm25",
+        name="Hourly PM2.5",
+        icon="mdi:chemical-weapon",
+        device_class=SensorDeviceClass.PM25,
+        suggested_display_precision=1,
+        native_unit_of_measurement=CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
+        state_class=SensorStateClass.MEASUREMENT,
+        value_template="{{ value_json['parameters'][0]['timeSeriesReadings'][0]['readings'][0]['averageValue'] }}"
+    ),
+    TYPE_PM25_24H: SensorEntityDescription(
+        key=TYPE_PM25_24H,
+        translation_key="pm25_24h_average",
+        device_class=SensorDeviceClass.PM25,
+        name="Daily Average PM2.5",
+        icon="mdi:chemical-weapon",
+        suggested_display_precision=1,
+        native_unit_of_measurement=CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
+        state_class=SensorStateClass.MEASUREMENT,
+        value_template="{{ value_json['parameters'][0]['timeSeriesReadings'][1]['readings'][0]['averageValue'] }}"
+    ),
 }
 
-def setup_platform(hass, config, add_entities, discovery_info=None):
-    api_key = config.get(CONF_API_KEY)
-    site_id = config.get(CONF_SITE_ID)
+SCAN_INTERVAL = timedelta(minutes=30)
 
-    coordinator = EPADataUpdateCoordinator(hass, api_key, site_id)
+class SensorUpdatePolicy(Enum):
+    """Sensor update policy"""
+    DEFAULT = 0
+    EVERY_TIME_INTERVAL = 1
 
-    sensors = []
-    for sensor_type in SENSOR_TYPES:
-        sensors.append(EPAQualitySensor(coordinator, sensor_type))
-    
-    add_entities(sensors, True)
+def get_sensor_update_policy() -> SensorUpdatePolicy:
+    """Get the sensor update policy.
 
-class EPADataUpdateCoordinator(DataUpdateCoordinator):
-    def __init__(self, hass, api_key, site_id):
-        self.api_key = api_key
-        self.site_id = site_id
+    Many sensors update every five minutes (EVERY_TIME_INTERVAL), while others only update on startup or forecast fetch.
 
-        super().__init__(
-            hass,
-            _LOGGER,
-            name=DOMAIN,
-            update_interval=SCAN_INTERVAL,
-        )
+    Arguments:
+        key (str): The sensor name.
 
-    async def _async_update_data(self):
+    Returns:
+        SensorUpdatePolicy: The update policy.
+    """
+    return SensorUpdatePolicy.EVERY_TIME_INTERVAL
+
+class EPAQualitySensor(CoordinatorEntity, SensorEntity):
+    """Representation of a EPA Air Quality sensor device."""
+
+    _attr_attribution = ATTRIBUTION
+    _attr_has_entity_name = True
+
+    def __init__(
+            self,
+            coordinator,
+            entity_description: SensorEntityDescription,
+            entry: ConfigEntry
+    ):
+        super().__init__(coordinator)
+
+        self.entity_description = entity_description
+        self._coordinator = coordinator
+        self._update_policy = get_sensor_update_policy()
+        self._attr_unique_id = f"{entity_description.key}"
+        self._attributes = {}
+        self._attr_extra_state_attributes = {}
+
         try:
-            headers = {"X-API-Key": self.api_key}
-            response = requests.get(f"https://gateway.api.epa.vic.gov.au/environmentMonitoring/v1/sites/{self.site_id}/parameters", headers=headers)
-            response.raise_for_status()
-            data = response.json()
-            return data
-        except requests.RequestException as err:
-            raise UpdateFailed(f"Error communicating with API: {err}")
+            self._sensor_data = self._coordinator.get_sensor_value(entity_description.key)
+        except Exception as e:
+            _LOGGER.error("Unable to get sensor value: %s: %s", e, traceback.format_exc())
+            self._sensor_data = None
 
-class EPAQualitySensor(SensorEntity):
-    def __init__(self, coordinator, sensor_type):
-        self.coordinator = coordinator
-        self.sensor_type = sensor_type
-        sensor_info = SENSOR_TYPES[sensor_type]
-        self._attr_name = f"EPA {coordinator.site_id} {sensor_info['name']}"
-        self._attr_unique_id = f"epa_victoria_air_quality_{coordinator.site_id}_{sensor_type}"
-        self._attr_unit_of_measurement = sensor_info["unit"]
-        self._attr_icon = sensor_info["icon"]
-        self._attr_device_class = sensor_info["device_class"]
-        self._attr_state_class = STATE_CLASS_MEASUREMENT if sensor_info["unit"] else None
-        self._attr_state = None
+        if self._sensor_data is None:
+            self._attr_available = False
+        else:
+            self._attr_available = True
 
-    @property
-    def state(self):
-        if self.coordinator.data:
-            try:
-                return eval(self.sensor_type)["value_template"]
-            except (KeyError, IndexError):
-                return None
-        return None
+        self._attr_device_info = {
+            ATTR_IDENTIFIERS: {(DOMAIN, entry.entry_id)},
+            ATTR_NAME: "EPA Air Quality", #entry.title,
+            ATTR_MANUFACTURER: MANUFACTURER,
+            ATTR_MODEL: "EPA Air Quality",
+            ATTR_ENTRY_TYPE: DeviceEntryType.SERVICE,
+            ATTR_SW_VERSION: coordinator._version,
+            ATTR_CONFIGURATION_URL: "https://portal.api.epa.vic.gov.au/",
+        }
+
+        self._unique_id = f"epa_api_{entity_description.name}"
 
     @property
-    def extra_state_attributes(self):
-        if self.coordinator.data:
-            try:
-                param = eval(self.sensor_type)["value_template"]
-                return {
-                    "site_id": self.coordinator.site_id,
-                    "update_time": param.get("update_time"),
-                    "unit": param.get("unit"),
-                }
-            except (KeyError, IndexError):
-                return {}
-        return {}
+    def name(self):
+        """Return the name of the device.
+
+        Returns:
+            str: The device name.
+        """
+        return f"{self.entity_description.name}"
 
     @property
-    def device_info(self):
-        return DeviceInfo(
-            identifiers={(DOMAIN, self.coordinator.site_id)},
-            name="EPA Victoria Air Quality",
-            manufacturer="EPA Victoria",
-            model="Air Quality Sensor",
-        )
+    def friendly_name(self):
+        """Return the friendly name of the device.
 
-    def update(self):
-        self.coordinator.async_request_refresh()
+        Returns:
+            str: The device friendly name, which is the same as device name.
+        """
+        return self.entity_description.name
+
+    @property
+    def unique_id(self):
+        """Return the unique ID of the sensor.
+
+        Returns:
+            str: Unique ID.
+        """
+        return f"epavic_{self._unique_id}"
+
+    @property
+    def native_value(self) -> Optional[int | dt | float | str | bool]:
+        """Return the current value of the sensor.
+
+        Returns:
+            int | dt | float | str | bool | None: The current value of a sensor.
+        """
+        return self._sensor_data
+
+    @property
+    def should_poll(self) -> bool:
+        """Return whether the sensor should poll.
+
+        Returns:
+            bool: Always returns False, as sensors are not polled.
+        """
+        return False
+
+    async def async_added_to_hass(self):
+        """Called when an entity is added to hass."""
+        await super().async_added_to_hass()
+        self.async_on_remove(self._coordinator.async_add_listener(self._handle_coordinator_update))
