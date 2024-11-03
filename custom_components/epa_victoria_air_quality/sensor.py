@@ -55,7 +55,6 @@ SENSORS: dict[str, SensorEntityDescription] = {
         name="Hourly Health Advice",
         icon="mdi:information-outline",
         state_class=None,
-        value_template="{{ value_json['parameters'][0]['timeSeriesReadings'][0]['readings'][0]['healthAdvice'] }}"
     ),
     TYPE_AQI_PM25_24H: SensorEntityDescription(
         key=TYPE_AQI_PM25_24H,
@@ -64,7 +63,6 @@ SENSORS: dict[str, SensorEntityDescription] = {
         name="Daily Health Advice",
         icon="mdi:information-outline",
         state_class=None,
-        value_template="{{ value_json['parameters'][0]['timeSeriesReadings'][1]['readings'][0]['healthAdvice'] }}"
     ),
     TYPE_PM25: SensorEntityDescription(
         key=TYPE_PM25,
@@ -75,7 +73,6 @@ SENSORS: dict[str, SensorEntityDescription] = {
         suggested_display_precision=1,
         native_unit_of_measurement=CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
         state_class=SensorStateClass.MEASUREMENT,
-        value_template="{{ value_json['parameters'][0]['timeSeriesReadings'][0]['readings'][0]['averageValue'] }}"
     ),
     TYPE_PM25_24H: SensorEntityDescription(
         key=TYPE_PM25_24H,
@@ -86,7 +83,6 @@ SENSORS: dict[str, SensorEntityDescription] = {
         suggested_display_precision=1,
         native_unit_of_measurement=CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
         state_class=SensorStateClass.MEASUREMENT,
-        value_template="{{ value_json['parameters'][0]['timeSeriesReadings'][1]['readings'][0]['averageValue'] }}"
     ),
 }
 
