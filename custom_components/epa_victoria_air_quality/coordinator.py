@@ -58,15 +58,6 @@ class EPAVicUpdateCoordinator(DataUpdateCoordinator):
 
         super().__init__(hass, _LOGGER, name=DOMAIN)
 
-
-    async def _async_update_data(self):
-        """Update data via library.
-
-        Returns:
-            list: Current air quality detail list.
-        """
-        return self.epa.get_data()
-
     async def setup(self) -> bool:
         """Set up time change tracking."""
         self._last_day = dt.now(self.epa.options.tz).day
