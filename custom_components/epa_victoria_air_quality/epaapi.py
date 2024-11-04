@@ -268,7 +268,7 @@ class EPAApi: # pylint: disable=R0904
                 async with self._serialise_lock:
                     async with aiofiles.open(filename, 'w') as f:
                         await f.write(payload)
-                _LOGGER.debug("Saved %s air quality cache", "dampened" if filename == self._filename else "undampened")
+                _LOGGER.debug("Saved air quality cache")
                 return True
             except Exception as e:
                 _LOGGER.error("Exception writing air quality data: %s", e)
@@ -362,27 +362,27 @@ class EPAApi: # pylint: disable=R0904
 
             st_time = time.time()
             for timeSeriesReadings in aqi_results:
-                z1Hr = ""
-                healthAdvice1Hr = ""
-                averageValue1Hr = float(0)
-                healthAdvice24Hr = ""
-                averageValue24Hr = float(0)
+                until = ""
+                aqi_pm25 = ""
+                pm25 = float(0)
+                aqi_pm25_24h = ""
+                pm25_24h = float(0)
                 if timeSeriesReadings["timeSeriesName"] == "1HR_AV":
-                    z1Hr = parse_datetime(timeSeriesReadings["readings"]["until"]).astimezone(timezone.utc)
-                    healthAdvice1Hr = timeSeriesReadings["readings"]["healthAdvice"]
-                    averageValue1Hr  = float(timeSeriesReadings["readings"]["averageValue"])
+                    until = parse_datetime(timeSeriesReadings["readings"]["until"]).astimezone(timezone.utc)
+                    aqi_pm25 = timeSeriesReadings["readings"]["healthAdvice"]
+                    pm25  = float(timeSeriesReadings["readings"]["averageValue"])
                 elif timeSeriesReadings["timeSeriesName"] == "24HR_AV":
-                    healthAdvice24Hr = timeSeriesReadings["readings"]["healthAdvice"]
-                    averageValue24Hr  = float(timeSeriesReadings["readings"]["averageValue"])
+                    aqi_pm25_24h = timeSeriesReadings["readings"]["healthAdvice"]
+                    pm25_24h  = float(timeSeriesReadings["readings"]["averageValue"])
 
             new_data.append(
                 {
-                    "until": z1Hr,
-                    "healthAdvice1Hr": healthAdvice1Hr,
-                    "averageValue1Hr": averageValue1Hr,
-                    "healthAdvice24Hr": healthAdvice24Hr,
-                    "averageValue24Hr": averageValue24Hr,
-                    "updated": st_time,
+                    "until": until,
+                    "aqi_pm25": aqi_pm25,
+                    "pm25": pm25,
+                    "aqi_pm25_24h": aqi_pm25_24h,
+                    "pm25_24h": pm25_24h,
+                    "lastupdated": st_time,
                 }
             )
 
@@ -391,17 +391,17 @@ class EPAApi: # pylint: disable=R0904
             """
             # Load the AQI History history.
             try:
-                AQIs = {aqi["until"]: aqi for aqi in self._data['site'][site]['aqi']}
+                aqis = {aqi["until"]: aqi for aqi in self._data['site'][site]['aqi']}
             except:
-                AQIs = {}
+                aqis = {}
 
 
             # Air Quality contains up to 730 days of period history data for each site. Convert dictionary to list, retain the past two years, sort by period start.
             pastdays = self.get_day_start_utc(future=-730)
-            AQIs = sorted(list(filter(lambda aqi: aqi["until"] >= pastdays, AQIs.values())), key=itemgetter("until"))
-            self._data['site'].update({site:{'aqi': copy.deepcopy(AQIs)}})
+            aqis = sorted(list(filter(lambda aqi: aqi["until"] >= pastdays, aqis.values())), key=itemgetter("until"))
+            self._data['site'].update({site:{'aqi': copy.deepcopy(aqis)}})
 
-            _LOGGER.debug("AQI dictionary length %s", len(AQIs))
+            _LOGGER.debug("AQI dictionary length %s", len(aqis))
             _LOGGER.debug("HTTP data call processing took %.3f seconds", round(time.time() - st_time, 4))
             return True
         except Exception as e:
@@ -440,7 +440,7 @@ class EPAApi: # pylint: disable=R0904
                             resp_json = json.loads(await f.read())
                             status = 200
                             _LOGGER.debug("Offline cached mode enabled, loaded data for site %s", site_id)
-                else:               
+                else:
                     url = f"{self.options.host}/{site_id}/parameters"
                     _LOGGER.debug("Fetch data url: %s", url)
                     tries = 10

@@ -1,4 +1,4 @@
-"""Support for EPA Air Quality, intialisation."""
+"""Support for EPA Air Quality, initialisation."""
 
 # pylint: disable=C0301, C0304, C0321, E0401, E1135, W0613, W0702, W0718
 
@@ -45,7 +45,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         entry (ConfigEntry): The integration entry instance, contains the configuration.
 
     Raises:
-        ConfigEntryNotReady: Instructs Home Assistant that the integration is not yet ready when a load failure occurrs.
+        ConfigEntryNotReady: Instructs Home Assistant that the integration is not yet ready when a load failure occurs.
 
     Returns:
         bool: Whether setup has completed successfully.
@@ -166,7 +166,7 @@ async def async_remove_config_entry_device(hass: HomeAssistant, entry: ConfigEnt
 
     Arguments:
         hass (HomeAssistant): The Home Assistant instance.
-        entry (ConfigEntry): Not ussed.
+        entry (ConfigEntry): Not used.
         device: The device instance.
 
     Returns:

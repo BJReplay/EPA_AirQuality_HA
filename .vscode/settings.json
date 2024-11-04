@@ -1,5 +1,13 @@
 {
     "files.associations": {
         "*.yaml": "home-assistant"
-    }
+    },
+    "cSpell.ignoreWords": [
+        "sepa"
+    ],
+    "cSpell.words": [
+        "epavic",
+        "lastupdated",
+        "loryanstrant"
+    ]
 }

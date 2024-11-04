@@ -196,6 +196,55 @@ class EPAVicUpdateCoordinator(DataUpdateCoordinator):
         """
         return self.epa.sites
 
+    def get_data(self) -> dict[str, Any]:
+        """Return the data dictionary.
+
+        Returns:
+            list: Dampened forecast detail list of the sum of all site forecasts.
+        """
+        return self._data
+
+    def get_last_updated(self) -> dt:
+        """Return when the data was last updated.
+
+        Returns:
+            datetime: The last successful forecast fetch.
+        """
+        return self._data["last_updated"]
+
+    def get_aqi_pm25(self) -> str:
+        """Returns C
+
+        Returns:
+            str: Air Quality Description
+        """
+
+        return self._data["aqi_pm25"]
+
+    def get_aqi_pm25_24h(self) -> str:
+        """Returns the 24 Hour Air Quality based on PM2.5
+
+        Returns:
+            str: Air Quality Description
+        """
+        return self._data["aqi_pm25_24h"]
+
+    def get_pm25(self) -> float:
+        """Return the PM2.5 air quality in µg/m3
+
+        Returns:
+            float: The PM2.5 air quality in µg/m3
+        """
+        return self._data["pm25"]
+
+    def get_pm25_24h(self) -> dt:
+        """Return the 24 Hour PM2.5 air quality in µg/m3
+
+        Returns:
+            float: The PM2.5 air quality in µg/m3
+        """
+        return self._data["pm25_24h"]
+
     def get_data_updated(self) -> bool:
         """Returns True if data has been updated, which will trigger all sensor values to update.
 
@@ -224,34 +273,20 @@ class EPAVicUpdateCoordinator(DataUpdateCoordinator):
         """Return the value of a sensor."""
         match key:
             case "aqi_pm25":
-                return self.epa.get_peak_w_day(0)
+                return self.get_aqi_pm25()
             case "aqi_pm25_24h":
-                return self.epa.get_peak_w_time_day(0)
+                return self.get_aqi_pm25_24h()
             case "pm25":
-                return self.epa.get_quality_n_hour(0)
+                return self.get_pm25()
             case "pm25_24h":
-                return self.epa.get_quality_n_hour(1)
-            case "api_counter":
-                return self.epa.get_api_used_count()
+                return self.get_pm25_24h()
             case "lastupdated":
-                return self.epa.get_last_updated()
+                return self.get_last_updated()
             case _:
                 return None
 
     def get_sensor_extra_attributes(self, key="") -> Optional[Dict[str, Any]]:
         """Return the attributes for a sensor."""
-        match key:
-            case _:
-                return None
-
-    def get_site_sensor_value(self, roof_id: str, key: str) -> Optional[float]:
-        """Get the site total for today."""
-        match key:
-            case _:
-                return None
-
-    def get_site_sensor_extra_attributes(self, roof_id: str, key: str) -> Optional[dict[str, Any]]:
-        """Get the attributes for a sensor."""
         match key:
             case _:
                 return None

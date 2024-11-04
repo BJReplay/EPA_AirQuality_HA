@@ -34,7 +34,7 @@ class EPAVicConfigFlow(ConfigFlow, domain=DOMAIN):
             entry (ConfigEntry): The integration entry instance, contains the configuration.
 
         Returns:
-            SolcastSolarOptionFlowHandler: The congig flow handler instance.
+            EPAVicOptionFlowHandler: The config flow handler instance.
         """
         return EPAVicOptionFlowHandler(entry)
 
