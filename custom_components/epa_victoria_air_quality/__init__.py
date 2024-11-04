@@ -118,7 +118,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.config_entries.async_update_entry(entry, options=opt)
     hass.data[DOMAIN]['entry_options'] = entry.options
 
-    collector = Collector(options.latitude, options.longitude, options.api_key, options.trimmed_version)
+    collector = Collector(
+        api_key=options.api_key,
+        version_string=options.trimmed_version,
+        epa_site_id=options.site_id,
+        latitude=options.latitude,
+        longitude=options.longitude,
+        )
 
     try:
         await collector.async_update()

@@ -29,7 +29,14 @@ _LOGGER = logging.getLogger(__name__)
 class Collector:
     """Collector for PyEPA."""
 
-    def __init__(self, latitude, longitude, api_key, version_string):
+    def __init__(
+            self,
+            api_key: str,
+            version_string: str,
+            epa_site_id: str = "",
+            latitude: float =0,
+            longitude: float = 0,
+        ):
         """Init collector."""
         self.locations_data = None
         self.observations_data = None
@@ -53,16 +60,22 @@ class Collector:
         }
         _LOGGER.debug("Session headers: %s", self.headers)
 
+        if epa_site_id != "":
+            self.site_id = epa_site_id
+            self.site_found = True
+
     async def get_locations_data(self):
         """Get JSON location name from BOM API endpoint."""
+        self.site_found = False
         async with aiohttp.ClientSession(headers=self.headers) as session:
-            response = await session.get(URL_BASE + URL_FIND_SITE + "[%s,%s]", self.latitude, self.longitude)
+            if self.latitude != 0 and self.longitude != 0:
+                response = await session.get(URL_BASE + URL_FIND_SITE + "[%s,%s]", self.latitude, self.longitude)
 
-        if response is not None and response.status == 200:
-            self.locations_data = await response.json()
-            if self.locations_data["siteID"] is not None:
-                self.site_id = self.locations_data["siteID"]
-                self.site_found = True
+                if response is not None and response.status == 200:
+                    self.locations_data = await response.json()
+                    if self.locations_data["siteID"] is not None:
+                        self.site_id = self.locations_data["siteID"]
+                        self.site_found = True
 
     async def valid_location(self) -> bool:
         """Returns true if a valid location has been found from the latitude and longitude
