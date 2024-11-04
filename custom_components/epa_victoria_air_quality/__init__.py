@@ -126,10 +126,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         longitude=options.longitude,
         )
 
-    try:
-        await collector.async_update()
-    except ClientConnectorError as ex:
-        raise ConfigEntryNotReady from ex
+#    try:
+#        await collector.async_update()
+#    except ClientConnectorError as ex:
+#        raise ConfigEntryNotReady from ex
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     coordinator = EPADataUpdateCoordinator(hass=hass, collector=collector)
