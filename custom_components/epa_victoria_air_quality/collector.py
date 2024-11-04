@@ -3,7 +3,7 @@
 # pylint: disable=C0103, C0301, C0302, C0304, C0321, E0401, R0902, R0914, W0105, W0702, W0706, W0718, W0719
 
 import datetime
-from datetime import datetime
+from datetime import datetime as dt
 import logging
 import aiohttp # type: ignore
 
@@ -110,7 +110,7 @@ class Collector:
                         case "24HR_AV":
                             self.aqi_pm25_24h = timeSeriesReadings[READINGS][HEALTH_ADVICE]
                             self.pm25_24h = timeSeriesReadings[READINGS][AVERAGE_VALUE]
-            self.last_updated = datetime.now()
+            self.last_updated = dt.now()
 
     @Throttle(datetime.timedelta(minutes=30))
     async def async_update(self):
