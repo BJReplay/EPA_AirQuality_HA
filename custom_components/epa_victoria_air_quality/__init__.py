@@ -23,7 +23,8 @@ from homeassistant.helpers import entity_registry as er # type: ignore
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator # type: ignore
 from aiohttp.client_exceptions import ClientConnectorError # type: ignore
 
-from .collector import ConnectionOptions, Collector
+from .collector import Collector
+from .config_flow import ConnectionOptions
 
 from .const import (
     CONF_SITE_ID,
@@ -78,18 +79,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     else:
         tz = dt_util.get_time_zone(hass.config.time_zone)
 
-    headers = {}
-
-    options = ConnectionOptions(
-        entry.options[CONF_API_KEY],
-        entry.options[CONF_SITE_ID],
-        entry.options[URL_BASE],
-        entry.options[CONF_LATITUDE],
-        entry.options[CONF_LONGITUDE],
-        tz,
-        headers,
-    )
-
     try:
         version = ''
         integration = await loader.async_get_integration(hass, DOMAIN)
@@ -98,12 +87,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         pass
 
     raw_version = version.replace('v','')
-    headers = {
-        'Accept': 'application/json',
-        'User-Agent': 'ha-epa-integration/'+raw_version[:raw_version.rfind('.')],
-        'X-API-Key': options.api_key
-    }
-    _LOGGER.debug("Session headers: %s", headers)
+
+    trimmed_version = raw_version[:raw_version.rfind('.')]
 
     options = ConnectionOptions(
         entry.options[CONF_API_KEY],
@@ -112,7 +97,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         entry.options[CONF_LATITUDE],
         entry.options[CONF_LONGITUDE],
         tz,
-        headers,
+        trimmed_version,
     )
 
     if not hass.data.get(DOMAIN):
@@ -137,7 +122,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.config_entries.async_update_entry(entry, options=opt)
     hass.data[DOMAIN]['entry_options'] = entry.options
 
-    collector = Collector(options.latitude, options.longitude, options.api_key)
+    collector = Collector(options.latitude, options.longitude, options.api_key, options.trimmed_version)
 
     try:
         await collector.async_update()

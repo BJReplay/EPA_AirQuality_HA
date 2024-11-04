@@ -1,13 +1,12 @@
 """EPA API data 'collector' that downloads the observation data."""
 
 # pylint: disable=C0103, C0301, C0302, C0304, C0321, E0401, R0902, R0914, W0105, W0702, W0706, W0718, W0719
-from dataclasses import dataclass
 
 import datetime
 from datetime import datetime
-from datetime import timezone
 import logging
 import aiohttp # type: ignore
+
 
 from homeassistant.util import Throttle # type: ignore
 
@@ -26,34 +25,33 @@ from const import (
 
 _LOGGER = logging.getLogger(__name__)
 
-@dataclass
-class ConnectionOptions:
-    """EPA options for the integration."""
-    api_key: str
-    site_id: str
-    host: str
-    latitude: float
-    longitude: float
-    tz: timezone
-    headers: str
 
 class Collector:
     """Collector for PyEPA."""
 
-    def __init__(self, latitude, longitude, headers):
+    def __init__(self, latitude, longitude, api_key, version_string):
         """Init collector."""
         self.locations_data = None
         self.observations_data = None
-        self.site_id = None
         self.latitude = latitude
         self.longitude = longitude
-        self.headers = headers
+        self.api_key = api_key
+        self.version_string = version_string
         self.until = ""
+        self.site_id = ""
         self.aqi_pm25 = ""
         self.pm25 = float(0)
         self.aqi_pm25_24h = ""
         self.pm25_24h = float(0)
         self.last_updated = ""
+        self.site_found = bool(False)
+
+        self.headers = {
+            'Accept': 'application/json',
+            'User-Agent': 'ha-epa-integration/'+self.version_string,
+            'X-API-Key': self.api_key
+        }
+        _LOGGER.debug("Session headers: %s", self.headers)
 
     async def get_locations_data(self):
         """Get JSON location name from BOM API endpoint."""
@@ -62,8 +60,28 @@ class Collector:
 
         if response is not None and response.status == 200:
             self.locations_data = await response.json()
-            if self.observations_data["records"]["siteID"] is not None:
-                self.site_id = self.observations_data["records"]["siteID"]
+            if self.locations_data["siteID"] is not None:
+                self.site_id = self.locations_data["siteID"]
+                self.site_found = True
+
+    async def valid_location(self) -> bool:
+        """Returns true if a valid location has been found from the latitude and longitude
+
+        Returns:
+            bool: True if a valid EPA location has been found
+        """
+        return self.site_found
+
+    async def get_location(self) -> str:
+        """Returns the EPA Site Location GUID
+
+        Returns:
+            str: EPA Site Location GUID
+        """
+        if self.site_found:
+            return self.site_id
+        else:
+            return ""
 
     async def extract_observation_data(self):
         """Extracts Observation Data to individual fields"""
@@ -90,4 +108,4 @@ class Collector:
 
             async with session.get(URL_BASE + self.site_id + URL_PARAMETERS) as resp:
                 self.observations_data = await resp.json()
-                await self.extract_observation_data() 
+                await self.extract_observation_data()

@@ -6,15 +6,18 @@ from __future__ import annotations
 from typing import Optional, Any
 
 import logging
+from datetime import timezone
+from dataclasses import dataclass
+
 
 import voluptuous as vol # type: ignore
-
 from homeassistant.config_entries import ConfigEntry, ConfigFlow, OptionsFlow # type: ignore
 from homeassistant.const import ( # type: ignore
     CONF_LATITUDE,
     CONF_LONGITUDE,
     CONF_API_KEY,
 )
+
 from homeassistant.core import callback # type: ignore
 from homeassistant.data_entry_flow import FlowResult # type: ignore
 from homeassistant import config_entries # type: ignore
@@ -36,8 +39,7 @@ class EPAVicConfigFlow(ConfigFlow, domain=DOMAIN):
         """Initialise the options flow."""
         self.config_entry = config_entry
         self.data = {}
-        self.collector = None
-        self.epa = None
+        self.collector = Collector
 
     @staticmethod
     @callback
@@ -75,20 +77,21 @@ class EPAVicConfigFlow(ConfigFlow, domain=DOMAIN):
                 self.collector = Collector(
                     user_input[CONF_LATITUDE],
                     user_input[CONF_LONGITUDE],
-                    self.epa.headers
+                    user_input[CONF_API_KEY],
+                    ConnectionOptions.trimmed_version,
                 )
 
                 # Save the user input into self.data so it's retained
                 self.data = user_input
 
                 # Check if location is valid
-                await self.collector.get_locations_data()
-                if self.collector.site_id is None:
+                await self.collector.get_locations_data(self)
+                if not self.collector.valid_location(self):
                     _LOGGER.debug("Unsupported Latitude/Longitude")
                     errors["base"] = "bad_location"
                 else:
                     # Populate observations
-                    await self.collector.async_update()
+                    await self.collector.async_update(self)
 
             except Exception:
                 _LOGGER.exception("Unexpected exception")
@@ -98,24 +101,24 @@ class EPAVicConfigFlow(ConfigFlow, domain=DOMAIN):
                 title= TITLE,
                 data = {},
                 options={
-                    CONF_API_KEY: user_input[CONF_API_KEY],
                     CONF_LATITUDE: user_input[CONF_LATITUDE],
-                    CONF_LONGITUDE: user_input[CONF_LONGITUDE]
+                    CONF_LONGITUDE: user_input[CONF_LONGITUDE],
+                    CONF_API_KEY: user_input[CONF_API_KEY],
                 }
             )
 
         return self.async_show_form(
             step_id="user",
             data_schema=vol.Schema({
-                vol.Required(CONF_API_KEY, default=""): str,
                 vol.Required(CONF_LATITUDE, default=self.hass.config.latitude): float,
                 vol.Required(CONF_LONGITUDE, default=self.hass.config.longitude): float,
+                vol.Required(CONF_API_KEY, default=""): str,
             }),
             errors=errors,
             description_placeholders={
-                CONF_API_KEY: "Enter your API key provided by EPA Victoria.",
                 CONF_LATITUDE: "Enter the Latitude for the location you want to monitor.",
                 CONF_LONGITUDE: "Enter the Longitude for the location you want to monitor.",
+                CONF_API_KEY: "Enter your API key provided by EPA Victoria.",
             }
         )
 
@@ -180,3 +183,15 @@ class EPAVicOptionFlowHandler(OptionsFlow):
             ),
             errors=errors
         )
+
+
+@dataclass
+class ConnectionOptions:
+    """EPA options for the integration."""
+    api_key: str
+    site_id: str
+    host: str
+    latitude: float
+    longitude: float
+    tz: timezone
+    trimmed_version: str
