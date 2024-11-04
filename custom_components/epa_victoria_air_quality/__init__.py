@@ -3,18 +3,14 @@
 # pylint: disable=C0301, C0304, C0321, E0401, E1135, W0613, W0702, W0718
 
 import logging
-import traceback
-import os
 from datetime import timedelta
 import datetime
-import asyncio
 
 from homeassistant import loader # type: ignore
 from homeassistant.config_entries import ConfigEntry # type: ignore
 from homeassistant.const import CONF_API_KEY, CONF_LATITUDE, CONF_LONGITUDE, Platform # type: ignore
 from homeassistant.core import HomeAssistant, callback  # type: ignore
 from homeassistant.exceptions import ConfigEntryNotReady # type: ignore
-from homeassistant.helpers import aiohttp_client # type: ignore
 from homeassistant.helpers.device_registry import async_get as device_registry # type: ignore
 from homeassistant.util import dt as dt_util # type: ignore
 from homeassistant.helpers import debounce # type: ignore

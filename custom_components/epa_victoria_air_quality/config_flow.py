@@ -25,6 +25,7 @@ from homeassistant import config_entries # type: ignore
 from .const import (
     DOMAIN,
     TITLE,
+    CONF_SITE_ID,
 )
 
 from .collector import Collector
@@ -83,6 +84,7 @@ class EPAVicConfigFlow(ConfigFlow, domain=DOMAIN):
 
                 # Save the user input into self.data so it's retained
                 self.data = user_input
+                site_id = ""
 
                 # Check if location is valid
                 await self.collector.get_locations_data(self)
@@ -91,6 +93,7 @@ class EPAVicConfigFlow(ConfigFlow, domain=DOMAIN):
                     errors["base"] = "bad_location"
                 else:
                     # Populate observations
+                    site_id = self.collector.get_location(self)
                     await self.collector.async_update(self)
 
             except Exception:
@@ -104,6 +107,7 @@ class EPAVicConfigFlow(ConfigFlow, domain=DOMAIN):
                     CONF_LATITUDE: user_input[CONF_LATITUDE],
                     CONF_LONGITUDE: user_input[CONF_LONGITUDE],
                     CONF_API_KEY: user_input[CONF_API_KEY],
+                    CONF_SITE_ID: site_id,
                 }
             )
 
