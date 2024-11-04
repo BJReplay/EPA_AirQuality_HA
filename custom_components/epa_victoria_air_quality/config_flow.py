@@ -24,7 +24,7 @@ from .const import (
     TITLE,
 )
 
-from .PyEPA.collector import Collector
+from .collector import Collector
 
 _LOGGER = logging.getLogger(__name__)
 

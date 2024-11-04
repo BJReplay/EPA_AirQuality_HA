@@ -11,7 +11,7 @@ import aiohttp # type: ignore
 
 from homeassistant.util import Throttle # type: ignore
 
-from PyEPA.const import (
+from const import (
     URL_BASE,
     URL_FIND_SITE,
     URL_PARAMETERS,

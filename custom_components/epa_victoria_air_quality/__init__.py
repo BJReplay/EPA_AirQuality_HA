@@ -23,8 +23,7 @@ from homeassistant.helpers import entity_registry as er # type: ignore
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator # type: ignore
 from aiohttp.client_exceptions import ClientConnectorError # type: ignore
 
-from .PyEPA.collector import ConnectionOptions, Collector
-from .PyEPA.const import URL_BASE
+from .collector import ConnectionOptions, Collector
 
 from .const import (
     CONF_SITE_ID,
@@ -33,6 +32,7 @@ from .const import (
     DOMAIN,
     INIT_MSG,
     SERVICE_UPDATE,
+    URL_BASE
 )
 
 
