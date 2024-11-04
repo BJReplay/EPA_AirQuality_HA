@@ -6,31 +6,47 @@ import logging
 import traceback
 import os
 from datetime import timedelta
+import datetime
 import asyncio
 
 from homeassistant import loader # type: ignore
 from homeassistant.config_entries import ConfigEntry # type: ignore
-from homeassistant.const import CONF_API_KEY, Platform # type: ignore
-from homeassistant.core import HomeAssistant, ServiceCall  # type: ignore
+from homeassistant.const import CONF_API_KEY, CONF_LATITUDE, CONF_LONGITUDE, Platform # type: ignore
+from homeassistant.core import HomeAssistant, callback  # type: ignore
 from homeassistant.exceptions import ConfigEntryNotReady # type: ignore
 from homeassistant.helpers import aiohttp_client # type: ignore
 from homeassistant.helpers.device_registry import async_get as device_registry # type: ignore
 from homeassistant.util import dt as dt_util # type: ignore
+from homeassistant.helpers import debounce # type: ignore
+from homeassistant.helpers import device_registry as dr # type: ignore
+from homeassistant.helpers import entity_registry as er # type: ignore
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator # type: ignore
+from aiohttp.client_exceptions import ClientConnectorError # type: ignore
+
+from PyEPA.collector import ConnectionOptions, Collector
+from PyEPA.const import URL_BASE
 
 from .const import (
     CONF_SITE_ID,
+    COLLECTOR,
+    COORDINATOR,
     DOMAIN,
-    EPA_URL,
     INIT_MSG,
     SERVICE_UPDATE,
 )
 
-from .epaapi import ConnectionOptions, EPAApi
-from .coordinator import EPAVicUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS = [Platform.SENSOR]
+
+DEFAULT_SCAN_INTERVAL = datetime.timedelta(minutes=5)
+DEBOUNCE_TIME = 60  # in seconds
+
+async def async_setup(hass: HomeAssistant, config: dict):
+    """Set up the EPA component."""
+    hass.data.setdefault(DOMAIN, {})
+    return True
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up the integration.
@@ -62,28 +78,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     else:
         tz = dt_util.get_time_zone(hass.config.time_zone)
 
+    headers = {}
+
     options = ConnectionOptions(
         entry.options[CONF_API_KEY],
         entry.options[CONF_SITE_ID],
-        EPA_URL,
-        hass.config.path(f"{os.path.abspath(os.path.join(os.path.dirname(__file__) ,'../..'))}/epaapi.json"),
+        entry.options[URL_BASE],
+        entry.options[CONF_LATITUDE],
+        entry.options[CONF_LONGITUDE],
         tz,
+        headers,
     )
-
-    epa = EPAApi(aiohttp_client.async_get_clientsession(hass), options)
-
-    epa.entry = entry
-    epa.entry_options = {**entry.options}
-    epa.hass = hass
-
-    if not hass.data.get(DOMAIN):
-        hass.data[DOMAIN] = {}
-
-    if hass.data[DOMAIN].get('has_loaded', False):
-        init_msg = '' # if the integration has already successfully loaded previously then do not display the full version nag on reload.
-        epa.previously_loaded = True
-    else:
-        init_msg = INIT_MSG
 
     try:
         version = ''
@@ -93,12 +98,31 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         pass
 
     raw_version = version.replace('v','')
-    epa.headers = {
+    headers = {
         'Accept': 'application/json',
         'User-Agent': 'ha-epa-integration/'+raw_version[:raw_version.rfind('.')],
         'X-API-Key': options.api_key
     }
-    _LOGGER.debug("Session headers: %s", epa.headers)
+    _LOGGER.debug("Session headers: %s", headers)
+
+    options = ConnectionOptions(
+        entry.options[CONF_API_KEY],
+        entry.options[CONF_SITE_ID],
+        entry.options[URL_BASE],
+        entry.options[CONF_LATITUDE],
+        entry.options[CONF_LONGITUDE],
+        tz,
+        headers,
+    )
+
+    if not hass.data.get(DOMAIN):
+        hass.data[DOMAIN] = {}
+
+    if hass.data[DOMAIN].get('has_loaded', False):
+        init_msg = '' # if the integration has already successfully loaded previously then do not display the full version nag on reload.
+    else:
+        init_msg = INIT_MSG
+
 
     _LOGGER.debug("Successful init")
 
@@ -113,33 +137,33 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.config_entries.async_update_entry(entry, options=opt)
     hass.data[DOMAIN]['entry_options'] = entry.options
 
+    collector = Collector(options.latitude, options.longitude, options.api_key)
 
-    coordinator = EPAVicUpdateCoordinator(hass, epa, version)
-    if not await coordinator.setup():
-        raise ConfigEntryNotReady('Internal error: Coordinator setup failed')
-    await coordinator.async_config_entry_first_refresh()
-    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
-
+    try:
+        await collector.async_update()
+    except ClientConnectorError as ex:
+        raise ConfigEntryNotReady from ex
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+    coordinator = EPADataUpdateCoordinator(hass=hass, collector=collector)
+    await coordinator.async_refresh()
+
+    hass_data = hass.data.setdefault(DOMAIN, {})
+    hass_data[entry.entry_id] = {
+        COLLECTOR: collector,
+        COORDINATOR: coordinator,
+    }
 
     entry.async_on_unload(entry.add_update_listener(async_update_options))
 
     hass.data[DOMAIN]['has_loaded'] = True
 
-    async def action_call_update_air_quality(call: ServiceCall):
-        """Handle action.
-
-        Arguments:
-            call (ServiceCall): Not used.
-        """
-        _LOGGER.info("Action: Fetching air quality")
-        await coordinator.service_event_update()
-
-    hass.services.async_register(
-        DOMAIN, SERVICE_UPDATE, action_call_update_air_quality
-    )
-
     return True
+
+
+async def async_update_options(hass: HomeAssistant, entry: ConfigEntry):
+    """Handle config entry updates."""
+    await hass.config_entries.async_reload(entry.entry_id)
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry.
@@ -175,68 +199,48 @@ async def async_remove_config_entry_device(hass: HomeAssistant, entry: ConfigEnt
     device_registry(hass).async_remove_device(device.id)
     return True
 
-async def async_update_options(hass: HomeAssistant, entry: ConfigEntry):
-    """Reconfigure the integration when options get updated.
+class EPADataUpdateCoordinator(DataUpdateCoordinator):
+    """Data update coordinator for Bureau of Meteorology."""
 
-    * Changing API key or Site ID results in a restart.
+    def __init__(self, hass: HomeAssistant, collector: Collector) -> None:
+        """Initialise the data update coordinator."""
+        self.collector = collector
+        super().__init__(
+            hass=hass,
+            logger=_LOGGER,
+            name=DOMAIN,
+            update_method=self.collector.async_update,
+            update_interval=DEFAULT_SCAN_INTERVAL,
+            request_refresh_debouncer=debounce.Debouncer(
+                hass, _LOGGER, cooldown=DEBOUNCE_TIME, immediate=True
+            ),
+        )
 
-    Arguments:
-        hass (HomeAssistant): The Home Assistant instance.
-        entry (ConfigEntry): The integration entry instance, contains the configuration.
-    """
-    coordinator = hass.data[DOMAIN][entry.entry_id]
+        self.entity_registry_updated_unsub = self.hass.bus.async_listen(
+            er.EVENT_ENTITY_REGISTRY_UPDATED, self.entity_registry_updated
+        )
 
-    def tasks_cancel():
-        try:
-            # Terminate epaapi tasks in progress
-            for task, cancel in coordinator.epa.tasks.items():
-                _LOGGER.debug("Cancelling EPAAPI task %s", task)
-                cancel.cancel()
-            # Terminate coordinator tasks in progress
-            for task, cancel in coordinator.tasks.items():
-                _LOGGER.debug("Cancelling coordinator task %s", task)
-                if isinstance(cancel, asyncio.Task):
-                    cancel.cancel()
-                else:
-                    cancel()
-            coordinator.tasks = {}
-        except Exception as e:
-            _LOGGER.error("Cancelling tasks failed: %s: %s", e, traceback.format_exc())
-        coordinator.epa.tasks = {}
+    @callback
+    def entity_registry_updated(self, event):
+        """Handle entity registry update events."""
+        if event.data["action"] == "remove":
+            self.remove_empty_devices()
 
-    try:
-        reload = False
+    def remove_empty_devices(self):
+        """Remove devices with no entities."""
+        ent_reg = er.async_get(self.hass)
+        dev_reg = dr.async_get(self.hass)
+        device_list = dr.async_entries_for_config_entry(
+            dev_reg, self.config_entry.entry_id
+        )
 
-        def changed(config):
-            return hass.data[DOMAIN]['entry_options'].get(config) != entry.options.get(config)
+        for device_entry in device_list:
+            entities = er.async_entries_for_device(
+                ent_reg, device_entry.id, include_disabled_entities=True
+            )
 
-        # Config changes, which when changed will cause a reload.
-        if changed(CONF_API_KEY):
-            hass.data[DOMAIN]['old_api_key'] = hass.data[DOMAIN]['entry_options'].get(CONF_API_KEY)
-        if changed(CONF_SITE_ID):
-            hass.data[DOMAIN]['old_site_id'] = hass.data[DOMAIN]['entry_options'].get(CONF_SITE_ID)
-        reload = changed(CONF_API_KEY) or changed(CONF_SITE_ID)
-
-        if reload:
-            determination = 'The integration will reload'
-        else:
-            determination = 'Refresh sensors only'
-        _LOGGER.debug("Options updated, action: %s", determination)
-        if not reload:
-            await coordinator.epa.set_options(entry.options)
-            await coordinator.epa.get_quality_update()
-            coordinator.set_data_updated(True)
-            await coordinator.update_integration_listeners()
-            coordinator.set_data_updated(False)
-
-            hass.data[DOMAIN]['entry_options'] = entry.options
-            coordinator.epa.entry_options = entry.options
-        else:
-            # Reload
-            tasks_cancel()
-            await hass.config_entries.async_reload(entry.entry_id)
-    except:
-        _LOGGER.debug(traceback.format_exc())
-        # Restart on exception
-        tasks_cancel()
-        await hass.config_entries.async_reload(entry.entry_id)
+            if not entities:
+                _LOGGER.debug("Removing orphaned device: %s", device_entry.name)
+                dev_reg.async_update_device(
+                    device_entry.id, remove_config_entry_id=self.config_entry.entry_id
+                )

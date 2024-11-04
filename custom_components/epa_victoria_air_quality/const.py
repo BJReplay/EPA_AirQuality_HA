@@ -8,9 +8,11 @@ from typing import Final
 # Integration constants
 ATTR_ENTRY_TYPE: Final = "entry_type"
 ATTRIBUTION: Final = "Data retrieved from EPA (Victoria)"
+COLLECTOR: Final = "collector"
 CONF_SITE_ID = "site_id"
 DOMAIN = "epa_victoria_air_quality"
 ENTRY_TYPE_SERVICE: Final = "service"
+COORDINATOR: Final = "coordinator"
 EPA_URL = "https://gateway.api.epa.vic.gov.au/environmentMonitoring/v1/sites/"
 TIME_FORMAT = "%H:%M:%S"
 DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
