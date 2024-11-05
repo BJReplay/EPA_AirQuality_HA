@@ -3,7 +3,6 @@
 # pylint: disable=C0301, C0304, C0321, E0401, E1135, W0613, W0702, W0718
 
 import logging
-from datetime import timedelta
 import datetime
 
 from homeassistant import loader # type: ignore
@@ -29,15 +28,15 @@ from .const import (
     DOMAIN,
     INIT_MSG,
     SERVICE_UPDATE,
-    URL_BASE
+    URL_BASE,
+    UPDATE_LISTENER,
 )
-
 
 _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS = [Platform.SENSOR]
 
-DEFAULT_SCAN_INTERVAL = datetime.timedelta(minutes=5)
+DEFAULT_SCAN_INTERVAL = datetime.timedelta(minutes=30)
 DEBOUNCE_TIME = 60  # in seconds
 
 async def async_setup(hass: HomeAssistant, config: dict):
@@ -64,37 +63,24 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         bool: Whether setup has completed successfully.
     """
 
-    # async_get_time_zone() mandated in HA core 2024.6.0
-    try:
-        dt_util.async_get_time_zone # pylint: disable=W0104
-        asynctz = True
-    except:
-        asynctz = False
-    if asynctz:
-        tz = await dt_util.async_get_time_zone(hass.config.time_zone)
-    else:
-        tz = dt_util.get_time_zone(hass.config.time_zone)
+    tz = get_tz(hass)
+    _LOGGER.debug("tz")
 
-    try:
-        version = ''
-        integration = await loader.async_get_integration(hass, DOMAIN)
-        version = str(integration.version)
-    except loader.IntegrationNotFound:
-        pass
-
-    raw_version = version.replace('v','')
-
-    trimmed_version = raw_version[:raw_version.rfind('.')]
+    version = get_version(hass)
+    _LOGGER.debug("version")
+    trimmed_version = get_trimmed_version(version)
+    _LOGGER.debug("trimmed_version")
 
     options = ConnectionOptions(
-        entry.options[CONF_API_KEY],
-        entry.options[CONF_SITE_ID],
-        entry.options[URL_BASE],
-        entry.options[CONF_LATITUDE],
-        entry.options[CONF_LONGITUDE],
+        entry.data[CONF_API_KEY],
+        entry.data[CONF_SITE_ID],
+        entry.data[URL_BASE],
+        entry.data[CONF_LATITUDE],
+        entry.data[CONF_LONGITUDE],
         tz,
         trimmed_version,
     )
+    _LOGGER.debug(options)
 
     if not hass.data.get(DOMAIN):
         hass.data[DOMAIN] = {}
@@ -126,10 +112,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         longitude=options.longitude,
         )
 
-#    try:
-#        await collector.async_update()
-#    except ClientConnectorError as ex:
-#        raise ConfigEntryNotReady from ex
+    try:
+        await collector.async_update()
+    except ClientConnectorError as ex:
+        raise ConfigEntryNotReady from ex
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     coordinator = EPADataUpdateCoordinator(hass=hass, collector=collector)
@@ -141,12 +127,72 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         COORDINATOR: coordinator,
     }
 
-    entry.async_on_unload(entry.add_update_listener(async_update_options))
+    #entry.async_on_unload(entry.add_update_listener(async_update_options))
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+    update_listener = entry.add_update_listener(async_update_options)
+    hass.data[DOMAIN][entry.entry_id][UPDATE_LISTENER] = update_listener
 
     hass.data[DOMAIN]['has_loaded'] = True
 
     return True
 
+async def get_tz(hass: HomeAssistant) -> str:
+    """Returns tz using async_get_time_zone() as mandated in HA core 2024.6.0
+
+    Args:
+        hass (HomeAssistant): hass reference
+
+    Returns:
+        str: Time Zone
+    """
+
+    tz = ""
+    try:
+        dt_util.async_get_time_zone # pylint: disable=W0104
+        asynctz = True
+    except:
+        asynctz = False
+    if asynctz:
+        tz = await dt_util.async_get_time_zone(hass.config.time_zone)
+    else:
+        tz = dt_util.get_time_zone(hass.config.time_zone)
+    return tz
+
+async def get_version(hass: HomeAssistant) -> str:
+    """Gets trimmed version string for use in User Agent String
+
+    Args:
+        hass (HomeAssistant): hass Reference
+
+    Returns:
+        str: Trimmed Version String
+    """
+    try:
+        version = ''
+        integration = await loader.async_get_integration(hass, DOMAIN)
+        version = str(integration.version)
+    except loader.IntegrationNotFound:
+        pass
+
+    return version
+
+async def get_trimmed_version(version: str) -> str:
+    """Gets trimmed version string for use in User Agent String
+
+    Args:
+        version (str): version string
+
+    Returns:
+        str: Trimmed Version String
+    """
+    trimmed_version = ""
+
+    raw_version = version.replace('v','')
+
+    trimmed_version = raw_version[:raw_version.rfind('.')]
+
+    return trimmed_version
 
 async def async_update_options(hass: HomeAssistant, entry: ConfigEntry):
     """Handle config entry updates."""
