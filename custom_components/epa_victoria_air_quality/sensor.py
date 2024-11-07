@@ -1,26 +1,19 @@
 """Support for EPA (Victoria) Air Quality Sensors."""
 
-# pylint: disable=C0301, C0304, E0401, W0718, C0301
-
 from __future__ import annotations
 
-from typing import Optional
-
-from datetime import datetime as dt
-from datetime import timedelta
-
-import logging
-import traceback
+from datetime import datetime as dt, timedelta
 from enum import Enum
+import logging
 
-from homeassistant.components.sensor import ( # type: ignore
+from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntity,
     SensorEntityDescription,
     SensorStateClass,
 )
-from homeassistant.config_entries import ConfigEntry # type: ignore
-from homeassistant.const import ( # type: ignore
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import (
     ATTR_CONFIGURATION_URL,
     ATTR_IDENTIFIERS,
     ATTR_MANUFACTURER,
@@ -29,10 +22,10 @@ from homeassistant.const import ( # type: ignore
     ATTR_SW_VERSION,
     CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
 )
-
-from homeassistant.helpers.device_registry import DeviceEntryType # type: ignore
-from homeassistant.helpers.update_coordinator import CoordinatorEntity # type: ignore
-
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.device_registry import DeviceEntryType
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
     ATTR_ENTRY_TYPE,
@@ -44,6 +37,7 @@ from .const import (
     TYPE_PM25,
     TYPE_PM25_24H,
 )
+from .coordinator import EPADataUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -88,10 +82,35 @@ SENSORS: dict[str, SensorEntityDescription] = {
 
 SCAN_INTERVAL = timedelta(minutes=30)
 
+
+async def async_setup_entry(
+    hass: HomeAssistant,
+    config_entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
+    """Add sensors for passed config_entry in HA.
+
+    Arguments:
+        hass (HomeAssistant): The Home Assistant instance.
+        config_entry (ConfigEntry): The integration entry instance, contains the configuration.
+        async_add_entities (AddEntitiesCallback): The Home Assistant callback to add entities.
+
+    """
+
+    coordinator = EPADataUpdateCoordinator
+    entities = []
+
+    for sensor_types in SENSORS:
+        sen = EPAQualitySensor(coordinator, SENSORS[sensor_types], config_entry)
+        entities.append(sen)
+
+
 class SensorUpdatePolicy(Enum):
-    """Sensor update policy"""
+    """Sensor update policy."""
+
     DEFAULT = 0
     EVERY_TIME_INTERVAL = 1
+
 
 def get_sensor_update_policy() -> SensorUpdatePolicy:
     """Get the sensor update policy.
@@ -103,8 +122,10 @@ def get_sensor_update_policy() -> SensorUpdatePolicy:
 
     Returns:
         SensorUpdatePolicy: The update policy.
+
     """
     return SensorUpdatePolicy.EVERY_TIME_INTERVAL
+
 
 class EPAQualitySensor(CoordinatorEntity, SensorEntity):
     """Representation of a EPA Air Quality sensor device."""
@@ -113,11 +134,13 @@ class EPAQualitySensor(CoordinatorEntity, SensorEntity):
     _attr_has_entity_name = True
 
     def __init__(
-            self,
-            coordinator,
-            entity_description: SensorEntityDescription,
-            entry: ConfigEntry
-    ):
+        self,
+        coordinator: EPADataUpdateCoordinator,
+        entity_description: SensorEntityDescription,
+        entry: ConfigEntry,
+    ) -> None:
+        """Initialse Sensor."""
+
         super().__init__(coordinator)
 
         self.entity_description = entity_description
@@ -126,12 +149,7 @@ class EPAQualitySensor(CoordinatorEntity, SensorEntity):
         self._attr_unique_id = f"{entity_description.key}"
         self._attributes = {}
         self._attr_extra_state_attributes = {}
-
-        try:
-            self._sensor_data = self._coordinator.get_sensor_value(entity_description.key)
-        except Exception as e:
-            _LOGGER.error("Unable to get sensor value: %s: %s", e, traceback.format_exc())
-            self._sensor_data = None
+        self._sensor_data = None
 
         if self._sensor_data is None:
             self._attr_available = False
@@ -140,11 +158,11 @@ class EPAQualitySensor(CoordinatorEntity, SensorEntity):
 
         self._attr_device_info = {
             ATTR_IDENTIFIERS: {(DOMAIN, entry.entry_id)},
-            ATTR_NAME: "EPA Air Quality", #entry.title,
+            ATTR_NAME: "EPA Air Quality",  # entry.title,
             ATTR_MANUFACTURER: MANUFACTURER,
             ATTR_MODEL: "EPA Air Quality",
             ATTR_ENTRY_TYPE: DeviceEntryType.SERVICE,
-            ATTR_SW_VERSION: coordinator._version,
+            ATTR_SW_VERSION: self._coordinator.get_version,
             ATTR_CONFIGURATION_URL: "https://portal.api.epa.vic.gov.au/",
         }
 
@@ -156,6 +174,7 @@ class EPAQualitySensor(CoordinatorEntity, SensorEntity):
 
         Returns:
             str: The device name.
+
         """
         return f"{self.entity_description.name}"
 
@@ -165,6 +184,7 @@ class EPAQualitySensor(CoordinatorEntity, SensorEntity):
 
         Returns:
             str: The device friendly name, which is the same as device name.
+
         """
         return self.entity_description.name
 
@@ -174,15 +194,17 @@ class EPAQualitySensor(CoordinatorEntity, SensorEntity):
 
         Returns:
             str: Unique ID.
+
         """
         return f"epavic_{self._unique_id}"
 
     @property
-    def native_value(self) -> Optional[int | dt | float | str | bool]:
+    def native_value(self) -> int | dt | float | str | bool | None:
         """Return the current value of the sensor.
 
         Returns:
             int | dt | float | str | bool | None: The current value of a sensor.
+
         """
         return self._sensor_data
 
@@ -192,10 +214,13 @@ class EPAQualitySensor(CoordinatorEntity, SensorEntity):
 
         Returns:
             bool: Always returns False, as sensors are not polled.
+
         """
         return False
 
     async def async_added_to_hass(self):
-        """Called when an entity is added to hass."""
+        """Call when an entity is added to hass."""
         await super().async_added_to_hass()
-        self.async_on_remove(self._coordinator.async_add_listener(self._handle_coordinator_update))
+        self.async_on_remove(
+            self._coordinator.async_add_listener(self._handle_coordinator_update)
+        )

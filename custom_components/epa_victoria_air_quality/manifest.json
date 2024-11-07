@@ -1,18 +1,17 @@
 {
-    "domain": "epa_victoria_air_quality",
-    "name": "EPA Victoria Air Quality",
-    "codeowners": [
-      "@BJReplay",
-      "@loryanstrant"
-    ],
-    "config_flow": true,
-    "dependencies": [],
-    "documentation": "https://github.com/BJReplay/EPA_AirQuality_HA",
-    "iot_class": "cloud_polling",
-    "issue_tracker": "https://github.com/BJReplay/EPA_AirQuality_HA/issues",
-    "requirements": [],
-    "ssdp": [],
-    "version": "0.0.6",
-    "zeroconf": []
-  }
-  
+  "domain": "epa_victoria_air_quality",
+  "name": "EPA Victoria Air Quality",
+  "codeowners": [
+    "@BJReplay",
+    "@loryanstrant"
+  ],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/BJReplay/EPA_AirQuality_HA",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/BJReplay/EPA_AirQuality_HA/issues",
+  "requirements": [],
+  "ssdp": [],
+  "version": "0.0.6",
+  "zeroconf": []
+}

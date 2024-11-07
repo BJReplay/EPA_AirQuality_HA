@@ -1,8 +1,7 @@
 """Constants for the EPA Air Quality integration."""
 
-# pylint: disable=C0304, E0401, C0301
-
 from __future__ import annotations
+
 from typing import Final
 
 # Integration constants

@@ -1,27 +1,26 @@
-"""EPA API data 'collector' that downloads the observation data."""
-
-# pylint: disable=C0103, C0301, C0302, C0304, C0321, E0401, R0902, R0914, W0105, W0702, W0706, W0718, W0719
+"""EPA API data collector that downloads the observation data."""
 
 import datetime
 from datetime import datetime as dt
 import logging
-import aiohttp # type: ignore
+import traceback
 
+import aiohttp
 
-from homeassistant.util import Throttle # type: ignore
+from homeassistant.util import Throttle
 
 from .const import (
+    AVERAGE_VALUE,
+    HEALTH_ADVICE,
+    PARAMETERS,
+    READINGS,
+    TIME_SERIES_NAME,
+    TIME_SERIES_READINGS,
+    UNTIL,
     URL_BASE,
     URL_FIND_SITE,
     URL_PARAMETERS,
-    READINGS,
-    AVERAGE_VALUE,
-    HEALTH_ADVICE,
-    TIME_SERIES_READINGS,
-    UNTIL,
-    PARAMETERS,
-    TIME_SERIES_NAME,
-    )
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -30,16 +29,16 @@ class Collector:
     """Collector for PyEPA."""
 
     def __init__(
-            self,
-            api_key: str,
-            version_string: str,
-            epa_site_id: str = "",
-            latitude: float =0,
-            longitude: float = 0,
-        ):
+        self,
+        api_key: str,
+        version_string: str = "1.0",
+        epa_site_id: str = "",
+        latitude: float = 0,
+        longitude: float = 0,
+    ) -> None:
         """Init collector."""
-        self.locations_data = None
-        self.observations_data = None
+        self.locations_data = {}
+        self.observations_data = {}
         self.latitude = latitude
         self.longitude = longitude
         self.api_key = api_key
@@ -51,12 +50,12 @@ class Collector:
         self.aqi_pm25_24h = ""
         self.pm25_24h = float(0)
         self.last_updated = ""
-        self.site_found = bool(False)
+        self.site_found = False
 
         self.headers = {
-            'Accept': 'application/json',
-            'User-Agent': 'ha-epa-integration/'+self.version_string,
-            'X-API-Key': self.api_key
+            "Accept": "application/json",
+            "User-Agent": "ha-epa-integration/" + self.version_string,
+            "X-API-Key": self.api_key,
         }
         _LOGGER.debug("Session headers: %s", self.headers)
 
@@ -65,60 +64,85 @@ class Collector:
             self.site_found = True
 
     async def get_locations_data(self):
-        """Get JSON location name from BOM API endpoint."""
-        self.site_found = False
+        """Get JSON location name from EPA API endpoint."""
         async with aiohttp.ClientSession(headers=self.headers) as session:
             if self.latitude != 0 and self.longitude != 0:
-                response = await session.get(URL_BASE + URL_FIND_SITE + "[%s,%s]", self.latitude, self.longitude)
+                url = f"{URL_BASE}{URL_FIND_SITE}[{self.latitude},{self.longitude}]"
+                response = await session.get(url)
 
                 if response is not None and response.status == 200:
                     self.locations_data = await response.json()
-                    if self.locations_data["siteID"] is not None:
-                        self.site_id = self.locations_data["siteID"]
+                    try:
+                        self.site_id = self.locations_data["records"][0]["siteID"]
                         self.site_found = True
+                    except:
+                        _LOGGER.debug(
+                            "Exception in get_locations_data(): %s",
+                            traceback.format_exc(),
+                        )
+                        self.site_found = False
 
-    async def valid_location(self) -> bool:
-        """Returns true if a valid location has been found from the latitude and longitude
+    def valid_location(self) -> bool:
+        """Return true if a valid location has been found from the latitude and longitude.
 
         Returns:
             bool: True if a valid EPA location has been found
+
         """
         return self.site_found
 
-    async def get_location(self) -> str:
-        """Returns the EPA Site Location GUID
+    def get_location(self) -> str:
+        """Return the EPA Site Location GUID.
 
         Returns:
             str: EPA Site Location GUID
+
         """
         if self.site_found:
             return self.site_id
-        else:
-            return ""
+        return ""
 
     async def extract_observation_data(self):
-        """Extracts Observation Data to individual fields"""
+        """Extract Observation Data to individual fields."""
+        parameters = {}
+        time_series_readings = {}
+        time_series_reading = {}
         if self.observations_data[PARAMETERS] is not None:
-            p = self.observations_data[PARAMETERS]
-            if p[TIME_SERIES_READINGS] is not None:
-                for timeSeriesReadings in p:
-                    match timeSeriesReadings[TIME_SERIES_NAME]:
+            parameters = self.observations_data[PARAMETERS][0]
+            if parameters[TIME_SERIES_READINGS] is not None:
+                time_series_readings = parameters[TIME_SERIES_READINGS]
+                for time_series_reading in time_series_readings:
+                    match time_series_reading[TIME_SERIES_NAME]:
                         case "1HR_AV":
-                            self.aqi_pm25 = timeSeriesReadings[READINGS][HEALTH_ADVICE]
-                            self.pm25 = timeSeriesReadings[READINGS][AVERAGE_VALUE]
-                            self.until = timeSeriesReadings[READINGS][UNTIL]
+                            self.aqi_pm25 = time_series_reading[READINGS][0][
+                                HEALTH_ADVICE
+                            ]
+                            self.pm25 = time_series_reading[READINGS][0][AVERAGE_VALUE]
+                            self.until = time_series_reading[READINGS][0][UNTIL]
                         case "24HR_AV":
-                            self.aqi_pm25_24h = timeSeriesReadings[READINGS][HEALTH_ADVICE]
-                            self.pm25_24h = timeSeriesReadings[READINGS][AVERAGE_VALUE]
+                            self.aqi_pm25_24h = time_series_reading[READINGS][0][
+                                HEALTH_ADVICE
+                            ]
+                            self.pm25_24h = time_series_reading[READINGS][0][
+                                AVERAGE_VALUE
+                            ]
             self.last_updated = dt.now()
 
     @Throttle(datetime.timedelta(minutes=30))
     async def async_update(self):
         """Refresh the data on the collector object."""
-        async with aiohttp.ClientSession(headers=self.headers) as session:
-            if self.locations_data is None:
-                await self.get_locations_data()
+        try:
+            async with aiohttp.ClientSession(headers=self.headers) as session:
+                if self.locations_data is None:
+                    await self.get_locations_data()
 
-            async with session.get(URL_BASE + self.site_id + URL_PARAMETERS) as resp:
-                self.observations_data = await resp.json()
-                await self.extract_observation_data()
+                async with session.get(
+                    URL_BASE + self.site_id + URL_PARAMETERS
+                ) as resp:
+                    self.observations_data = await resp.json()
+                    await self.extract_observation_data()
+        except:
+            _LOGGER.debug(
+                "Exception in get_locations_data(): %s",
+                traceback.format_exc(),
+            )
