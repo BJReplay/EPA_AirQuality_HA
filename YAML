@@ -1,26 +1,25 @@
 type: horizontal-stack
 cards:
-  - type: conditional
+
+- type: conditional
     conditions:
-      - condition: state
-        entity: sensor.epa_melbourne_air_quality_hourly_health_advice
+  - condition: state
+        entity: sensor.epa_air_quality_hourly_health_advice
         state: Good
     card:
       type: markdown
       content: >-
         <center><img src='/local/good-aqi.png'><BR>
 
-
         <font size = 4px> The Air Quality Today is  <font color = green> Good
         </font></font>
 
-
         The AQI is: <font size = 4px color = green> {{
-        states('sensor.epa_pm2_5aqi') }} </font></center>
-  - type: conditional
+        states('sensor.epa_air_quality_hourly_pm2_5') }} </font></center>
+- type: conditional
     conditions:
-      - condition: state
-        entity: sensor.epa_melbourne_air_quality_hourly_health_advice
+  - condition: state
+        entity: sensor.epa_air_quality_hourly_health_advice
         state: Fair
     card:
       type: markdown
@@ -30,13 +29,12 @@ cards:
         <font size = 4px> The Air Quality Today is  <font color = yellow> Fair
         </font></font>
 
-
         The AQI is: <font size = 4px color = yellow> {{
-        states('sensor.epa_pm2_5aqi') }} </font></center>
-  - type: conditional
+        states('sensor.epa_air_quality_hourly_pm2_5') }} </font></center>
+- type: conditional
     conditions:
-      - condition: state
-        entity: sensor.epa_melbourne_air_quality_hourly_health_advice
+  - condition: state
+        entity: sensor.epa_air_quality_hourly_health_advice
         state: Poor
     card:
       type: markdown
@@ -46,13 +44,12 @@ cards:
         <font size = 4px> The Air Quality Today is  <font color = orange> Poor
         </font></font>
 
-
         The AQI is: <font size = 4px color = orange> {{
-        states('sensor.epa_pm2_5aqi') }} </font></center>
-  - type: conditional
+        states('sensor.epa_air_quality_hourly_pm2_5') }} </font></center>
+- type: conditional
     conditions:
-      - condition: state
-        entity: sensor.epa_melbourne_air_quality_hourly_health_advice
+  - condition: state
+        entity: sensor.epa_air_quality_hourly_health_advice
         state: Very poor
     card:
       type: markdown
@@ -62,13 +59,12 @@ cards:
         <font size = 4px> The Air Quality Today is  <font color = red> Very Poor
         </font></font>
 
-
         The AQI is: <font size = 4px color = red> {{
-        states('sensor.epa_pm2_5aqi') }} </font></center>
-  - type: conditional
+        states('sensor.epa_air_quality_hourly_pm2_5') }} </font></center>
+- type: conditional
     conditions:
-      - condition: state
-        entity: sensor.epa_melbourne_air_quality_hourly_health_advice
+  - condition: state
+        entity: sensor.epa_air_quality_hourly_health_advice
         state: Extremely poor
     card:
       type: markdown
@@ -78,6 +74,5 @@ cards:
         <font size = 4px> The Air Quality Today is  <font color = purple>
         Extremely Poor </font></font>
 
-
         The AQI is: <font size = 4px color = purple> {{
-        states('sensor.epa_pm2_5aqi') }} </font></center>
+        states('sensor.epa_air_quality_hourly_pm2_5') }} </font></center>
