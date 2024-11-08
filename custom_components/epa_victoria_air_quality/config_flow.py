@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import logging
 from typing import Any
 
@@ -29,21 +28,23 @@ class EPAVicConfigFlow(ConfigFlow, domain=DOMAIN):
         self.data = {}
         self.collector: Collector = None
 
+    VERSION = 1
+
     @staticmethod
     @callback
     def async_get_options_flow(
-        config_entry: ConfigEntry,
+        entry: ConfigEntry,
     ) -> EPAVicOptionFlowHandler:
         """Get the options flow for this handler.
 
         Arguments:
-            config_entry (ConfigEntry): The integration entry instance, contains the configuration.
+            entry (ConfigEntry): The integration entry instance, contains the configuration.
 
         Returns:
             EPAVicOptionFlowHandler: The config flow handler instance.
 
         """
-        return EPAVicOptionFlowHandler(config_entry)
+        return EPAVicOptionFlowHandler(entry)
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -62,16 +63,24 @@ class EPAVicConfigFlow(ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             try:
+                site_id = "Determine from Location"
                 # Create the collector object with the given parameters
                 self.collector = Collector(
                     api_key=user_input[CONF_API_KEY],
                     latitude=user_input[CONF_LATITUDE],
                     longitude=user_input[CONF_LONGITUDE],
+                    epa_site_id=user_input[CONF_SITE_ID],
                 )
+
+                options = {
+                    CONF_LATITUDE: user_input[CONF_LATITUDE],
+                    CONF_LONGITUDE: user_input[CONF_LONGITUDE],
+                    CONF_API_KEY: user_input[CONF_API_KEY],
+                    CONF_SITE_ID: user_input[CONF_SITE_ID],
+                }
 
                 # Save the user input into self.data so it's retained
                 self.data = user_input
-                site_id = "currently unknown"
 
                 # Check if location is valid
                 await self.collector.get_locations_data()
@@ -90,32 +99,29 @@ class EPAVicConfigFlow(ConfigFlow, domain=DOMAIN):
             return self.async_create_entry(
                 title=TITLE,
                 data={},
-                options={
-                    CONF_LATITUDE: user_input[CONF_LATITUDE],
-                    CONF_LONGITUDE: user_input[CONF_LONGITUDE],
-                    CONF_API_KEY: user_input[CONF_API_KEY],
-                    CONF_SITE_ID: site_id,
-                },
+                options=options,
             )
 
         return self.async_show_form(
             step_id="user",
             data_schema=vol.Schema(
                 {
+                    vol.Required(CONF_API_KEY, default=""): str,
                     vol.Required(
                         CONF_LATITUDE, default=self.hass.config.latitude
                     ): float,
                     vol.Required(
                         CONF_LONGITUDE, default=self.hass.config.longitude
                     ): float,
-                    vol.Required(CONF_API_KEY, default=""): str,
+                    vol.Optional(CONF_SITE_ID, default="Determine from Location"): str,
                 }
             ),
             errors=errors,
             description_placeholders={
+                CONF_API_KEY: "Enter your API key provided by EPA Victoria.",
                 CONF_LATITUDE: "Enter the Latitude for the location you want to monitor.",
                 CONF_LONGITUDE: "Enter the Longitude for the location you want to monitor.",
-                CONF_API_KEY: "Enter your API key provided by EPA Victoria.",
+                CONF_SITE_ID: "Enter your the EPA Victoria Site ID, or leave as is to determine from location.",
             },
         )
 
@@ -154,18 +160,24 @@ class EPAVicOptionFlowHandler(OptionsFlow):
         api_key = self._options.get(CONF_API_KEY)
         site_lat = self._options.get(CONF_LATITUDE)
         site_lon = self._options.get(CONF_LONGITUDE)
+        try:
+            site_id = self._options.get(CONF_SITE_ID)
+        except:
+            site_id = "Determine from Location"
 
         if user_input is not None:
             try:
                 all_config_data = {**self._options}
 
+                all_config_data[CONF_SITE_ID] = site_id
+
                 api_key = user_input[CONF_API_KEY].replace(" ", "")
                 all_config_data[CONF_API_KEY] = api_key
 
-                site_lat = user_input[CONF_LATITUDE].replace(" ", "")
+                site_lat = user_input[CONF_LATITUDE]
                 all_config_data[CONF_LATITUDE] = site_lat
 
-                site_lon = user_input[CONF_LONGITUDE].replace(" ", "")
+                site_lon = user_input[CONF_LONGITUDE]
                 all_config_data[CONF_LONGITUDE] = site_lon
 
                 self.hass.config_entries.async_update_entry(
@@ -176,17 +188,22 @@ class EPAVicOptionFlowHandler(OptionsFlow):
 
                 self.data = user_input
 
-                site_id = "currently unknown"
-
                 # Check if location is valid
                 await self.collector.get_locations_data()
-                if not self.collector.valid_location():
+                if not self.collector.valid_location:
                     _LOGGER.debug("Unsupported Latitude/Longitude")
                     errors["base"] = "bad_location"
                 else:
                     # Populate observations
                     site_id = self.collector.get_location()
-                    await self.collector.async_update()
+                    all_config_data[CONF_SITE_ID] = site_id
+                    self.hass.config_entries.async_update_entry(
+                        self._entry,
+                        title=TITLE,
+                        options=all_config_data,
+                    )
+                    if self.collector.valid_location:
+                        await self.collector.async_update()
 
                 return self.async_create_entry(title=TITLE, data=None)
             except Exception as e:
@@ -199,18 +216,8 @@ class EPAVicOptionFlowHandler(OptionsFlow):
                     vol.Required(CONF_API_KEY, default=api_key): str,
                     vol.Required(CONF_LATITUDE, default=site_lat): float,
                     vol.Required(CONF_LONGITUDE, default=site_lon): float,
+                    vol.Optional(CONF_SITE_ID, default=site_id): str,
                 }
             ),
             errors=errors,
         )
-
-
-@dataclass
-class ConnectionOptions:
-    """EPA options for the integration."""
-
-    api_key: str
-    site_id: str
-    latitude: float
-    longitude: float
-    ua_version: str

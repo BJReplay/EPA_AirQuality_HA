@@ -14,8 +14,14 @@ from .const import (
     HEALTH_ADVICE,
     PARAMETERS,
     READINGS,
+    RECORDS,
+    SITE_ID,
     TIME_SERIES_NAME,
     TIME_SERIES_READINGS,
+    TYPE_AQI_PM25,
+    TYPE_AQI_PM25_24H,
+    TYPE_PM25,
+    TYPE_PM25_24H,
     UNTIL,
     URL_BASE,
     URL_FIND_SITE,
@@ -38,7 +44,7 @@ class Collector:
     ) -> None:
         """Init collector."""
         self.locations_data = {}
-        self.observations_data = {}
+        self.observation_data = {}
         self.latitude = latitude
         self.longitude = longitude
         self.api_key = api_key
@@ -57,7 +63,6 @@ class Collector:
             "User-Agent": "ha-epa-integration/" + self.version_string,
             "X-API-Key": self.api_key,
         }
-        _LOGGER.debug("Session headers: %s", self.headers)
 
         if epa_site_id != "":
             self.site_id = epa_site_id
@@ -73,7 +78,8 @@ class Collector:
                 if response is not None and response.status == 200:
                     self.locations_data = await response.json()
                     try:
-                        self.site_id = self.locations_data["records"][0]["siteID"]
+                        self.site_id = self.locations_data[RECORDS][0][SITE_ID]
+                        _LOGGER.debug("EPA Site ID Located: %s", self.site_id)
                         self.site_found = True
                     except:
                         _LOGGER.debug(
@@ -102,14 +108,84 @@ class Collector:
             return self.site_id
         return ""
 
+    def get_aqi_pm25(self) -> str:
+        """Return the EPA Site aqi_pm25.
+
+        Returns:
+            str: EPA Site aqi_pm25
+
+        """
+        if self.site_found:
+            return self.aqi_pm25
+        return ""
+
+    def get_aqi_pm25_24h(self) -> str:
+        """Return the EPA Site aqi_pm25_24h.
+
+        Returns:
+            str: EPA Site aqi_pm25_24h
+
+        """
+        if self.site_found:
+            return self.aqi_pm25_24h
+        return ""
+
+    def get_pm25(self) -> float:
+        """Return the EPA Site pm25.
+
+        Returns:
+            str: EPA Site pm25
+
+        """
+        if self.site_found:
+            return self.pm25
+        return 0
+
+    def get_pm25_24h(self) -> float:
+        """Return the EPA Site pm25_24h.
+
+        Returns:
+            str: EPA Site pm25_24h
+
+        """
+        if self.site_found:
+            return self.pm25_24h
+        return 0
+
+    def get_until(self) -> str:
+        """Return the EPA Reading Validity.
+
+        Returns:
+            str: EPA Site Reading Validity Time
+
+        """
+        if self.site_found:
+            return self.until
+        return 0
+
+    def get_sensor(self, key: str):
+        """Return A sensor.
+
+        Returns:
+            Any: EPA Site Sensor
+
+        """
+        if self.site_found:
+            try:
+                return self.observation_data.get(key)
+            except:
+                return "Sensor %s Not Found!"
+        return None
+
     async def extract_observation_data(self):
         """Extract Observation Data to individual fields."""
         parameters = {}
         time_series_readings = {}
         time_series_reading = {}
-        if self.observations_data[PARAMETERS] is not None:
+        self.observation_data = {}
+        if self.observations_data.get(PARAMETERS) is not None:
             parameters = self.observations_data[PARAMETERS][0]
-            if parameters[TIME_SERIES_READINGS] is not None:
+            if parameters.get(TIME_SERIES_READINGS) is not None:
                 time_series_readings = parameters[TIME_SERIES_READINGS]
                 for time_series_reading in time_series_readings:
                     match time_series_reading[TIME_SERIES_NAME]:
@@ -127,8 +203,15 @@ class Collector:
                                 AVERAGE_VALUE
                             ]
             self.last_updated = dt.now()
+            self.observation_data = {
+                TYPE_AQI_PM25: self.aqi_pm25,
+                TYPE_AQI_PM25_24H: self.aqi_pm25_24h,
+                TYPE_PM25: self.pm25,
+                TYPE_PM25_24H: self.pm25_24h,
+                UNTIL: self.until,
+            }
 
-    @Throttle(datetime.timedelta(minutes=30))
+    @Throttle(datetime.timedelta(minutes=5))
     async def async_update(self):
         """Refresh the data on the collector object."""
         try:

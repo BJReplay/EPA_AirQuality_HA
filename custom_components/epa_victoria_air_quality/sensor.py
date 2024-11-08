@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime as dt, timedelta
 from enum import Enum
 import logging
+import traceback
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -12,7 +13,6 @@ from homeassistant.components.sensor import (
     SensorEntityDescription,
     SensorStateClass,
 )
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     ATTR_CONFIGURATION_URL,
     ATTR_IDENTIFIERS,
@@ -22,11 +22,13 @@ from homeassistant.const import (
     ATTR_SW_VERSION,
     CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
 )
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceEntryType
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
+from . import EPAConfigEntry
+from .collector import Collector
 from .const import (
     ATTR_ENTRY_TYPE,
     ATTRIBUTION,
@@ -45,18 +47,22 @@ SENSORS: dict[str, SensorEntityDescription] = {
     TYPE_AQI_PM25: SensorEntityDescription(
         key=TYPE_AQI_PM25,
         translation_key="pm25_aqi",
-        device_class=SensorDeviceClass.AQI,
         name="Hourly Health Advice",
         icon="mdi:information-outline",
+        native_unit_of_measurement=None,
         state_class=None,
+        suggested_display_precision=None,
+        suggested_unit_of_measurement=None,
     ),
     TYPE_AQI_PM25_24H: SensorEntityDescription(
         key=TYPE_AQI_PM25_24H,
         translation_key="pm25_aqi_24h_average",
-        device_class=SensorDeviceClass.AQI,
         name="Daily Health Advice",
         icon="mdi:information-outline",
+        native_unit_of_measurement=None,
         state_class=None,
+        suggested_display_precision=None,
+        suggested_unit_of_measurement=None,
     ),
     TYPE_PM25: SensorEntityDescription(
         key=TYPE_PM25,
@@ -80,29 +86,31 @@ SENSORS: dict[str, SensorEntityDescription] = {
     ),
 }
 
-SCAN_INTERVAL = timedelta(minutes=30)
+SCAN_INTERVAL = timedelta(minutes=5)
 
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    config_entry: ConfigEntry,
+    entry: EPAConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Add sensors for passed config_entry in HA.
+    """Add sensors for passed entry in HA.
 
     Arguments:
         hass (HomeAssistant): The Home Assistant instance.
-        config_entry (ConfigEntry): The integration entry instance, contains the configuration.
+        entry (ConfigEntry): The integration entry instance, contains the configuration.
         async_add_entities (AddEntitiesCallback): The Home Assistant callback to add entities.
 
     """
-
-    coordinator = EPADataUpdateCoordinator
+    data = entry.runtime_data
+    coordinator: EPADataUpdateCoordinator = data.coordinator
     entities = []
 
     for sensor_types in SENSORS:
-        sen = EPAQualitySensor(coordinator, SENSORS[sensor_types], config_entry)
+        sen = EPAQualitySensor(coordinator, SENSORS[sensor_types], entry)
         entities.append(sen)
+
+    async_add_entities(entities, update_before_add=False)
 
 
 class SensorUpdatePolicy(Enum):
@@ -127,7 +135,7 @@ def get_sensor_update_policy() -> SensorUpdatePolicy:
     return SensorUpdatePolicy.EVERY_TIME_INTERVAL
 
 
-class EPAQualitySensor(CoordinatorEntity, SensorEntity):
+class EPAQualitySensor(CoordinatorEntity[EPADataUpdateCoordinator], SensorEntity):
     """Representation of a EPA Air Quality sensor device."""
 
     _attr_attribution = ATTRIBUTION
@@ -137,19 +145,34 @@ class EPAQualitySensor(CoordinatorEntity, SensorEntity):
         self,
         coordinator: EPADataUpdateCoordinator,
         entity_description: SensorEntityDescription,
-        entry: ConfigEntry,
+        entry: EPAConfigEntry,
     ) -> None:
         """Initialse Sensor."""
 
+        data = entry.runtime_data
+        coordinator: EPADataUpdateCoordinator = data.coordinator
+        collector: Collector = coordinator.collector
+        sensor_name = entity_description.key
         super().__init__(coordinator)
 
         self.entity_description = entity_description
+        self.sensor_name = sensor_name
         self._coordinator = coordinator
+        self._collector: Collector = collector
         self._update_policy = get_sensor_update_policy()
         self._attr_unique_id = f"{entity_description.key}"
         self._attributes = {}
         self._attr_extra_state_attributes = {}
-        self._sensor_data = None
+
+        try:
+            self._sensor_data = self._collector.get_sensor(entity_description.key)
+        except Exception as e:
+            _LOGGER.error(
+                "Unable to get sensor %s value. Exception: %s",
+                entity_description.key,
+                e,
+            )
+            self._sensor_data = None
 
         if self._sensor_data is None:
             self._attr_available = False
@@ -167,6 +190,34 @@ class EPAQualitySensor(CoordinatorEntity, SensorEntity):
         }
 
         self._unique_id = f"epa_api_{entity_description.name}"
+
+    @callback
+    def _handle_coordinator_update(self):
+        """Handle updated data from the coordinator.
+
+        Some sensors are updated periodically every five minutes (those with an update policy of
+        SensorUpdatePolicy.EVERY_TIME_INTERVAL), while the remaining sensors update after each
+        forecast update or when the date changes.
+        """
+
+        try:
+            self._sensor_data = self._collector.get_sensor(self.entity_description.key)
+        except Exception as e:
+            _LOGGER.error(
+                "Unable to get sensor value: %s: %s", e, traceback.format_exc()
+            )
+            self._sensor_data = None
+
+        if self._sensor_data is None:
+            self._attr_available = False
+        else:
+            self._attr_available = True
+
+        self.async_write_ha_state()
+
+    async def async_update(self):
+        """Refresh the data on the collector object."""
+        await self._collector.async_update()
 
     @property
     def name(self):
@@ -217,6 +268,23 @@ class EPAQualitySensor(CoordinatorEntity, SensorEntity):
 
         """
         return False
+
+    # @property
+    # def state(self):
+    #     """Return the state of the sensor."""
+    #     match self.sensor_name:
+    #         case "pm25":
+    #             return self._collector.get_pm25
+    #         case "pm25_24h":
+    #             return self._collector.get_pm25_24h
+    #         case "aqi_pm25":
+    #             return self._collector.get_aqi_pm25
+    #         case "aqi_pm25_24h":
+    #             return self._collector.get_aqi_pm25_24h
+    #         case "until":
+    #             return self._collector.get_until
+    #         case _:
+    #             return self._collector.get_sensor(self.sensor_name)
 
     async def async_added_to_hass(self):
         """Call when an entity is added to hass."""

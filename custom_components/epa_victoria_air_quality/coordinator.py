@@ -23,7 +23,7 @@ class EPADataUpdateCoordinator(DataUpdateCoordinator):
         self._hass: HomeAssistant = hass
 
         DEFAULT_SCAN_INTERVAL = datetime.timedelta(
-            minutes=30
+            minutes=5
         )  # EPA Updates roughly once every 30 minutes
         DEBOUNCE_TIME = 60  # in seconds
 
