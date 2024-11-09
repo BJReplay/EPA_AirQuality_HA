@@ -173,7 +173,7 @@ class Collector:
         if self.site_found:
             try:
                 return self.observation_data.get(key)
-            except:
+            except KeyError:
                 return "Sensor %s Not Found!"
         return None
 

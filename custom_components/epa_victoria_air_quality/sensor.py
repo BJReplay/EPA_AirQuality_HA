@@ -166,12 +166,14 @@ class EPAQualitySensor(CoordinatorEntity[EPADataUpdateCoordinator], SensorEntity
 
         try:
             self._sensor_data = self._collector.get_sensor(entity_description.key)
-        except Exception as e:
+        except KeyError as e:
             _LOGGER.error(
                 "Unable to get sensor %s value. Exception: %s",
                 entity_description.key,
                 e,
             )
+            self._sensor_data = None
+        else:
             self._sensor_data = None
 
         if self._sensor_data is None:
@@ -202,10 +204,12 @@ class EPAQualitySensor(CoordinatorEntity[EPADataUpdateCoordinator], SensorEntity
 
         try:
             self._sensor_data = self._collector.get_sensor(self.entity_description.key)
-        except Exception as e:
+        except KeyError as e:
             _LOGGER.error(
                 "Unable to get sensor value: %s: %s", e, traceback.format_exc()
             )
+            self._sensor_data = None
+        else:
             self._sensor_data = None
 
         if self._sensor_data is None:

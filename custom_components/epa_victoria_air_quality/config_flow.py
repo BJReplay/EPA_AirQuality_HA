@@ -63,7 +63,6 @@ class EPAVicConfigFlow(ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             try:
-                site_id = "Determine from Location"
                 # Create the collector object with the given parameters
                 self.collector = Collector(
                     api_key=user_input[CONF_API_KEY],
@@ -89,7 +88,6 @@ class EPAVicConfigFlow(ConfigFlow, domain=DOMAIN):
                     errors["base"] = "bad_location"
                 else:
                     # Populate observations
-                    site_id = self.collector.get_location()
                     await self.collector.async_update()
 
             except Exception:
@@ -162,52 +160,49 @@ class EPAVicOptionFlowHandler(OptionsFlow):
         site_lon = self._options.get(CONF_LONGITUDE)
         try:
             site_id = self._options.get(CONF_SITE_ID)
-        except:
+        except KeyError:
             site_id = "Determine from Location"
 
         if user_input is not None:
-            try:
-                all_config_data = {**self._options}
+            all_config_data = {**self._options}
 
+            all_config_data[CONF_SITE_ID] = site_id
+
+            api_key = user_input[CONF_API_KEY].replace(" ", "")
+            all_config_data[CONF_API_KEY] = api_key
+
+            site_lat = user_input[CONF_LATITUDE]
+            all_config_data[CONF_LATITUDE] = site_lat
+
+            site_lon = user_input[CONF_LONGITUDE]
+            all_config_data[CONF_LONGITUDE] = site_lon
+
+            self.hass.config_entries.async_update_entry(
+                self._entry,
+                title=TITLE,
+                options=all_config_data,
+            )
+
+            self.data = user_input
+
+            # Check if location is valid
+            await self.collector.get_locations_data()
+            if not self.collector.valid_location:
+                _LOGGER.debug("Unsupported Latitude/Longitude")
+                errors["base"] = "bad_location"
+            else:
+                # Populate observations
+                site_id = self.collector.get_location()
                 all_config_data[CONF_SITE_ID] = site_id
-
-                api_key = user_input[CONF_API_KEY].replace(" ", "")
-                all_config_data[CONF_API_KEY] = api_key
-
-                site_lat = user_input[CONF_LATITUDE]
-                all_config_data[CONF_LATITUDE] = site_lat
-
-                site_lon = user_input[CONF_LONGITUDE]
-                all_config_data[CONF_LONGITUDE] = site_lon
-
                 self.hass.config_entries.async_update_entry(
                     self._entry,
                     title=TITLE,
                     options=all_config_data,
                 )
+                if self.collector.valid_location:
+                    await self.collector.async_update()
 
-                self.data = user_input
-
-                # Check if location is valid
-                await self.collector.get_locations_data()
-                if not self.collector.valid_location:
-                    _LOGGER.debug("Unsupported Latitude/Longitude")
-                    errors["base"] = "bad_location"
-                else:
-                    # Populate observations
-                    site_id = self.collector.get_location()
-                    all_config_data[CONF_SITE_ID] = site_id
-                    self.hass.config_entries.async_update_entry(
-                        self._entry,
-                        title=TITLE,
-                        options=all_config_data,
-                    )
-                    if self.collector.valid_location:
-                        await self.collector.async_update()
-
-                return self.async_create_entry(title=TITLE, data=None)
-            except Exception as e:
-                errors["base"] = str(e)
+            return self.async_create_entry(title=TITLE, data=None)
 
         return self.async_show_form(
             step_id="init",

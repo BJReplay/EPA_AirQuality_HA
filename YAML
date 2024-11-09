@@ -1,78 +1,248 @@
-type: horizontal-stack
+type: vertical-stack
 cards:
+  - type: horizontal-stack
+    cards:
+      - type: horizontal-stack
+        cards:
+          - type: conditional
+            conditions:
+              - condition: state
+                entity: sensor.epa_air_quality_hourly_health_advice
+                state_not: unknown
+              - condition: state
+                entity: sensor.epa_air_quality_hourly_health_advice
+                state_not: unavailable
+              - condition: state
+                entity: sensor.epa_air_quality_hourly_health_advice
+                state: Good
+            card:
+              type: markdown
+              content: >-
+                <center><img src='/local/good-aqi.png'><BR>
 
-- type: conditional
-    conditions:
-  - condition: state
-        entity: sensor.epa_air_quality_hourly_health_advice
-        state: Good
-    card:
-      type: markdown
-      content: >-
-        <center><img src='/local/good-aqi.png'><BR>
 
-        <font size = 4px> The Air Quality Today is  <font color = green> Good
-        </font></font>
+                <font size = 4px> The Hourly Air Quality is  <font color =
+                green> Good </font></font>
 
-        The AQI is: <font size = 4px color = green> {{
-        states('sensor.epa_air_quality_hourly_pm2_5') }} </font></center>
-- type: conditional
-    conditions:
-  - condition: state
-        entity: sensor.epa_air_quality_hourly_health_advice
-        state: Fair
-    card:
-      type: markdown
-      content: >-
-        <center><img src='/local/fair-aqi.png'><BR>
 
-        <font size = 4px> The Air Quality Today is  <font color = yellow> Fair
-        </font></font>
+                The AQI is: <font size = 4px color = green> {{
+                states('sensor.epa_pm2_5aqi') }} </font></center>
+          - type: conditional
+            conditions:
+              - condition: state
+                entity: sensor.epa_air_quality_hourly_health_advice
+                state_not: unknown
+              - condition: state
+                entity: sensor.epa_air_quality_hourly_health_advice
+                state_not: unavailable
+              - condition: state
+                entity: sensor.epa_air_quality_hourly_health_advice
+                state: Fair
+            card:
+              type: markdown
+              content: >-
+                <center><img src='/local/fair-aqi.png'><BR>
 
-        The AQI is: <font size = 4px color = yellow> {{
-        states('sensor.epa_air_quality_hourly_pm2_5') }} </font></center>
-- type: conditional
-    conditions:
-  - condition: state
-        entity: sensor.epa_air_quality_hourly_health_advice
-        state: Poor
-    card:
-      type: markdown
-      content: >-
-        <center><img src='/local/poor-aqi.png'><BR>
+                <font size = 4px> The Hourly Air Quality is  <font color =
+                yellow> Fair </font></font>
 
-        <font size = 4px> The Air Quality Today is  <font color = orange> Poor
-        </font></font>
 
-        The AQI is: <font size = 4px color = orange> {{
-        states('sensor.epa_air_quality_hourly_pm2_5') }} </font></center>
-- type: conditional
-    conditions:
-  - condition: state
-        entity: sensor.epa_air_quality_hourly_health_advice
-        state: Very poor
-    card:
-      type: markdown
-      content: >-
-        <center><img src='/local/verypoor-aqi.png'><BR>
+                The AQI is: <font size = 4px color = yellow> {{
+                states('sensor.epa_pm2_5aqi') }} </font></center>
+          - type: conditional
+            conditions:
+              - condition: state
+                entity: sensor.epa_air_quality_hourly_health_advice
+                state_not: unknown
+              - condition: state
+                entity: sensor.epa_air_quality_hourly_health_advice
+                state_not: unavailable
+              - condition: state
+                entity: sensor.epa_air_quality_hourly_health_advice
+                state: Poor
+            card:
+              type: markdown
+              content: >-
+                <center><img src='/local/poor-aqi.png'><BR>
 
-        <font size = 4px> The Air Quality Today is  <font color = red> Very Poor
-        </font></font>
+                <font size = 4px> The Hourly Air Quality is  <font color =
+                orange> Poor </font></font>
 
-        The AQI is: <font size = 4px color = red> {{
-        states('sensor.epa_air_quality_hourly_pm2_5') }} </font></center>
-- type: conditional
-    conditions:
-  - condition: state
-        entity: sensor.epa_air_quality_hourly_health_advice
-        state: Extremely poor
-    card:
-      type: markdown
-      content: >-
-        <center><img src='/local/extremelypoor-aqi.png'><BR>
 
-        <font size = 4px> The Air Quality Today is  <font color = purple>
-        Extremely Poor </font></font>
+                The AQI is: <font size = 4px color = orange> {{
+                states('sensor.epa_pm2_5aqi') }} </font></center>
+          - type: conditional
+            conditions:
+              - condition: state
+                entity: sensor.epa_air_quality_hourly_health_advice
+                state_not: unknown
+              - condition: state
+                entity: sensor.epa_air_quality_hourly_health_advice
+                state_not: unavailable
+              - condition: state
+                entity: sensor.epa_air_quality_hourly_health_advice
+                state: Very poor
+            card:
+              type: markdown
+              content: >-
+                <center><img src='/local/verypoor-aqi.png'><BR>
 
-        The AQI is: <font size = 4px color = purple> {{
-        states('sensor.epa_air_quality_hourly_pm2_5') }} </font></center>
+                <font size = 4px> The Hourly Air Quality is  <font color = red>
+                Very Poor </font></font>
+
+
+                The AQI is: <font size = 4px color = red> {{
+                states('sensor.epa_pm2_5aqi') }} </font></center>
+          - type: conditional
+            conditions:
+              - condition: state
+                entity: sensor.epa_air_quality_hourly_health_advice
+                state_not: unknown
+              - condition: state
+                entity: sensor.epa_air_quality_hourly_health_advice
+                state_not: unavailable
+              - condition: state
+                entity: sensor.epa_air_quality_hourly_health_advice
+                state: Extremely poor
+            card:
+              type: markdown
+              content: >-
+                <center><img src='/local/extremelypoor-aqi.png'><BR>
+
+                <font size = 4px> The Hourly Air Quality is  <font color =
+                purple> Extremely Poor </font></font>
+
+
+                The AQI is: <font size = 4px color = purple> {{
+                states('sensor.epa_pm2_5aqi') }} </font></center>
+      - type: gauge
+        entity: sensor.epa_air_quality_hourly_pm2_5
+        max: 300
+        needle: true
+        severity:
+          green: 0
+          yellow: 100
+          red: 200
+  - type: horizontal-stack
+    cards:
+      - type: horizontal-stack
+        cards:
+          - type: conditional
+            conditions:
+              - condition: state
+                entity: sensor.epa_air_quality_daily_health_advice
+                state_not: unknown
+              - condition: state
+                entity: sensor.epa_air_quality_daily_health_advice
+                state_not: unavailable
+              - condition: state
+                entity: sensor.epa_air_quality_daily_health_advice
+                state: Good
+            card:
+              type: markdown
+              content: >-
+                <center><img src='/local/good-aqi.png'><BR>
+
+
+                <font size = 4px> The Daily Air Quality is  <font color = green>
+                Good </font></font>
+
+
+                The AQI is: <font size = 4px color = green> {{
+                states('sensor.epa_daily_aqi') }} </font></center>
+          - type: conditional
+            conditions:
+              - condition: state
+                entity: sensor.epa_air_quality_daily_health_advice
+                state_not: unknown
+              - condition: state
+                entity: sensor.epa_air_quality_daily_health_advice
+                state_not: unavailable
+              - condition: state
+                entity: sensor.epa_air_quality_daily_health_advice
+                state: Fair
+            card:
+              type: markdown
+              content: >-
+                <center><img src='/local/fair-aqi.png'><BR>
+
+                <font size = 4px> The Daily Air Quality is  <font color =
+                yellow> Fair </font></font>
+
+
+                The AQI is: <font size = 4px color = yellow> {{
+                states('sensor.epa_daily_aqi') }} </font></center>
+          - type: conditional
+            conditions:
+              - condition: state
+                entity: sensor.epa_air_quality_daily_health_advice
+                state_not: unknown
+              - condition: state
+                entity: sensor.epa_air_quality_daily_health_advice
+                state_not: unavailable
+              - condition: state
+                entity: sensor.epa_air_quality_daily_health_advice
+                state: Poor
+            card:
+              type: markdown
+              content: >-
+                <center><img src='/local/poor-aqi.png'><BR>
+
+                <font size = 4px> The Daily Air Quality is  <font color =
+                orange> Poor </font></font>
+
+
+                The AQI is: <font size = 4px color = orange> {{
+                states('sensor.epa_daily_aqi') }} </font></center>
+          - type: conditional
+            conditions:
+              - condition: state
+                entity: sensor.epa_air_quality_daily_health_advice
+                state_not: unknown
+              - condition: state
+                entity: sensor.epa_air_quality_daily_health_advice
+                state_not: unavailable
+              - condition: state
+                entity: sensor.epa_air_quality_daily_health_advice
+                state: Very poor
+            card:
+              type: markdown
+              content: >-
+                <center><img src='/local/verypoor-aqi.png'><BR>
+
+                <font size = 4px> The Daily Air Quality is  <font color = red>
+                Very Poor </font></font>
+
+
+                The AQI is: <font size = 4px color = red> {{
+                states('sensor.epa_daily_aqi') }} </font></center>
+          - type: conditional
+            conditions:
+              - condition: state
+                entity: sensor.epa_air_quality_daily_health_advice
+                state_not: unknown
+              - condition: state
+                entity: sensor.epa_air_quality_daily_health_advice
+                state_not: unavailable
+              - condition: state
+                entity: sensor.epa_air_quality_daily_health_advice
+                state: Extremely poor
+            card:
+              type: markdown
+              content: >-
+                <center><img src='/local/extremelypoor-aqi.png'><BR>
+
+                <font size = 4px> The Daily Air Quality is  <font color =
+                purple> Extremely Poor </font></font>
+
+
+                The AQI is: <font size = 4px color = purple> {{
+                states('sensor.epa_daily_aqi') }} </font></center>
+      - type: gauge
+        entity: sensor.epa_air_quality_daily_average_pm2_5
+        max: 300
+        needle: true
+        severity:
+          green: 0
+          yellow: 100
+          red: 200
