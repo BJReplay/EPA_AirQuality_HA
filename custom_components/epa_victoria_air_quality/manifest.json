@@ -12,10 +12,6 @@
   "issue_tracker": "https://github.com/BJReplay/EPA_AirQuality_HA/issues",
   "requirements": [],
   "ssdp": [],
-<<<<<<< HEAD
-  "version": "0.0.6",
-=======
   "version": "0.1.0",
->>>>>>> 1ef0b29 (Link Dev Container)
   "zeroconf": []
 }
