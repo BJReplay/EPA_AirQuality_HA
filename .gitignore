@@ -2,3 +2,5 @@
 .vscode/settings.json
 .vs
 __pycache__
+custom_components/epa_victoria_air_quality/__pycache__
+custom_components/epa_victoria_air_quality/__pycache__/*.*.pyc
