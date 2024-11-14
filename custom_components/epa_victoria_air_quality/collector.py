@@ -6,6 +6,7 @@ import logging
 import traceback
 
 import aiohttp
+import aqi
 
 from homeassistant.util import Throttle
 
@@ -18,6 +19,8 @@ from .const import (
     SITE_ID,
     TIME_SERIES_NAME,
     TIME_SERIES_READINGS,
+    TYPE_AQI,
+    TYPE_AQI_24H,
     TYPE_AQI_PM25,
     TYPE_AQI_PM25_24H,
     TYPE_PM25,
@@ -51,9 +54,11 @@ class Collector:
         self.version_string = version_string
         self.until = ""
         self.site_id = ""
+        self.aqi = float(0)
+        self.aqi_24h = float(0)
         self.aqi_pm25 = ""
-        self.pm25 = float(0)
         self.aqi_pm25_24h = ""
+        self.pm25 = float(0)
         self.pm25_24h = float(0)
         self.last_updated = ""
         self.site_found = False
@@ -107,6 +112,28 @@ class Collector:
         if self.site_found:
             return self.site_id
         return ""
+
+    def get_aqi(self) -> float:
+        """Return the EPA Site aqi.
+
+        Returns:
+            float: EPA Site Calculated API
+
+        """
+        if self.site_found:
+            return self.aqi
+        return 0
+
+    def get_aqi_24h(self) -> float:
+        """Return the EPA Site aqi_24h.
+
+        Returns:
+            float: EPA Site Calculated API 24h Average
+
+        """
+        if self.site_found:
+            return self.aqi_24h
+        return 0
 
     def get_aqi_pm25(self) -> str:
         """Return the EPA Site aqi_pm25.
@@ -188,22 +215,23 @@ class Collector:
             if parameters.get(TIME_SERIES_READINGS) is not None:
                 time_series_readings = parameters[TIME_SERIES_READINGS]
                 for time_series_reading in time_series_readings:
+                    reading = time_series_reading[READINGS][0]
                     match time_series_reading[TIME_SERIES_NAME]:
                         case "1HR_AV":
-                            self.aqi_pm25 = time_series_reading[READINGS][0][
-                                HEALTH_ADVICE
-                            ]
-                            self.pm25 = time_series_reading[READINGS][0][AVERAGE_VALUE]
-                            self.until = time_series_reading[READINGS][0][UNTIL]
+                            self.aqi_pm25 = reading[HEALTH_ADVICE]
+                            self.pm25 = reading[AVERAGE_VALUE]
+                            self.aqi = aqi.to_aqi([(aqi.POLLUTANT_PM25, self.pm25)])
+                            self.until = reading[UNTIL]
                         case "24HR_AV":
-                            self.aqi_pm25_24h = time_series_reading[READINGS][0][
-                                HEALTH_ADVICE
-                            ]
-                            self.pm25_24h = time_series_reading[READINGS][0][
-                                AVERAGE_VALUE
-                            ]
+                            self.aqi_pm25_24h = reading[HEALTH_ADVICE]
+                            self.pm25_24h = reading[AVERAGE_VALUE]
+                            self.aqi_24h = aqi.to_aqi(
+                                [(aqi.POLLUTANT_PM25, self.pm25_24h)]
+                            )
             self.last_updated = dt.now()
             self.observation_data = {
+                TYPE_AQI: self.aqi,
+                TYPE_AQI_24H: self.aqi_24h,
                 TYPE_AQI_PM25: self.aqi_pm25,
                 TYPE_AQI_PM25_24H: self.aqi_pm25_24h,
                 TYPE_PM25: self.pm25,

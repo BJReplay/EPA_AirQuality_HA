@@ -34,6 +34,8 @@ from .const import (
     ATTRIBUTION,
     DOMAIN,
     MANUFACTURER,
+    TYPE_AQI,
+    TYPE_AQI_24H,
     TYPE_AQI_PM25,
     TYPE_AQI_PM25_24H,
     TYPE_PM25,
@@ -56,7 +58,7 @@ SENSORS: dict[str, SensorEntityDescription] = {
     ),
     TYPE_AQI_PM25_24H: SensorEntityDescription(
         key=TYPE_AQI_PM25_24H,
-        translation_key="pm25_aqi_24h_average",
+        translation_key="aqi_pm25_24h",
         name="Daily Health Advice",
         icon="mdi:information-outline",
         native_unit_of_measurement=None,
@@ -76,12 +78,30 @@ SENSORS: dict[str, SensorEntityDescription] = {
     ),
     TYPE_PM25_24H: SensorEntityDescription(
         key=TYPE_PM25_24H,
-        translation_key="pm25_24h_average",
+        translation_key="pm25_24h",
         device_class=SensorDeviceClass.PM25,
-        name="Daily Average PM2.5",
+        name="Daily PM2.5",
         icon="mdi:chemical-weapon",
         suggested_display_precision=1,
         native_unit_of_measurement=CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    TYPE_AQI: SensorEntityDescription(
+        key=TYPE_AQI,
+        translation_key="aqi",
+        name="Hourly AQI",
+        icon="mdi:air-filter",
+        device_class=SensorDeviceClass.AQI,
+        suggested_display_precision=0,
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    TYPE_AQI_24H: SensorEntityDescription(
+        key=TYPE_AQI_24H,
+        translation_key="aqi_24h",
+        device_class=SensorDeviceClass.AQI,
+        name="Daily AQI",
+        icon="mdi:air-filter",
+        suggested_display_precision=0,
         state_class=SensorStateClass.MEASUREMENT,
     ),
 }
@@ -209,8 +229,6 @@ class EPAQualitySensor(CoordinatorEntity[EPADataUpdateCoordinator], SensorEntity
                 "Unable to get sensor value: %s: %s", e, traceback.format_exc()
             )
             self._sensor_data = None
-        else:
-            self._sensor_data = None
 
         if self._sensor_data is None:
             self._attr_available = False
@@ -272,23 +290,6 @@ class EPAQualitySensor(CoordinatorEntity[EPADataUpdateCoordinator], SensorEntity
 
         """
         return False
-
-    # @property
-    # def state(self):
-    #     """Return the state of the sensor."""
-    #     match self.sensor_name:
-    #         case "pm25":
-    #             return self._collector.get_pm25
-    #         case "pm25_24h":
-    #             return self._collector.get_pm25_24h
-    #         case "aqi_pm25":
-    #             return self._collector.get_aqi_pm25
-    #         case "aqi_pm25_24h":
-    #             return self._collector.get_aqi_pm25_24h
-    #         case "until":
-    #             return self._collector.get_until
-    #         case _:
-    #             return self._collector.get_sensor(self.sensor_name)
 
     async def async_added_to_hass(self):
         """Call when an entity is added to hass."""

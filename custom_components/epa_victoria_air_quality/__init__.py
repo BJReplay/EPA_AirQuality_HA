@@ -23,11 +23,6 @@ PLATFORMS = [Platform.SENSOR]
 
 type EPAConfigEntry = ConfigEntry[EPAData]
 
-# async def async_setup(hass: HomeAssistant, config: dict):
-#     """Set up the EPA component."""
-#     hass.data.setdefault(DOMAIN, {})
-#     return True
-
 
 async def async_migrate_entry(hass: HomeAssistant, entry: EPAConfigEntry) -> bool:
     """Migrate old entry."""
@@ -50,7 +45,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: EPAConfigEntry) -> bool:
 
     * Get and sanitise options.
     * Instantiate the main class.
-    * Load API usage.
     * Instantiate the coordinator.
 
     Arguments:
@@ -98,9 +92,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: EPAConfigEntry) -> bool:
     hass.data.setdefault(DOMAIN, {})
 
     entry.async_on_unload(entry.add_update_listener(async_update_options))
-
-    # update_listener = entry.add_update_listener(async_update_options)
-    # hass.data[DOMAIN][entry.entry_id][UPDATE_LISTENER] = update_listener
 
     return True
 

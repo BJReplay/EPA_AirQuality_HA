@@ -239,7 +239,7 @@ cards:
                 Daily AQI is: <font size = 3px color = purple> {{
                 states('sensor.epa_daily_aqi') }} </font></center>
       - type: gauge
-        entity: sensor.epa_air_quality_daily_average_pm2_5
+        entity: sensor.epa_air_quality_daily_pm2_5
         max: 300
         needle: true
         severity:

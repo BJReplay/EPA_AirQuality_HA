@@ -8,7 +8,7 @@ from homeassistant.helpers import debounce, device_registry as dr, entity_regist
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .collector import Collector
-from .const import DOMAIN
+from .const import DOMAIN, SCAN_INTERVAL
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -23,7 +23,7 @@ class EPADataUpdateCoordinator(DataUpdateCoordinator):
         self._hass: HomeAssistant = hass
 
         DEFAULT_SCAN_INTERVAL = datetime.timedelta(
-            minutes=5
+            minutes=SCAN_INTERVAL
         )  # EPA Updates roughly once every 30 minutes
         DEBOUNCE_TIME = 60  # in seconds
 
