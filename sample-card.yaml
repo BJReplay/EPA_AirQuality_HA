@@ -18,11 +18,11 @@ cards:
             card:
               type: markdown
               content: >-
-                <center><img src='/local/good-aqi.png'><BR>
+                <center><img height='67' src='/local/good-aqi.png'><BR>
 
 
-                <font size = 3px>Hourly Air Quality is<font color =
-                green> Good </font></font>
+                <font size = 3px>Hourly Air Quality is  <font color = green>
+                Good </font></font>
 
 
                 Hourly AQI is: <font size = 3px color = green> {{
@@ -41,10 +41,10 @@ cards:
             card:
               type: markdown
               content: >-
-                <center><img src='/local/fair-aqi.png'><BR>
+                <center><img height='67' src='/local/fair-aqi.png'><BR>
 
-                <font size = 3px>Hourly Air Quality is<font color =
-                yellow> Fair </font></font>
+                <font size = 3px>Hourly Air Quality is  <font color = yellow>
+                Fair </font></font>
 
 
                 Hourly AQI is: <font size = 3px color = yellow> {{
@@ -63,10 +63,10 @@ cards:
             card:
               type: markdown
               content: >-
-                <center><img src='/local/poor-aqi.png'><BR>
+                <center><img height='67' src='/local/poor-aqi.png'><BR>
 
-                <font size = 3px>Hourly Air Quality is<font color =
-                orange> Poor </font></font>
+                <font size = 3px>Hourly Air Quality is  <font color = orange>
+                Poor </font></font>
 
 
                 Hourly AQI is: <font size = 3px color = orange> {{
@@ -85,10 +85,10 @@ cards:
             card:
               type: markdown
               content: >-
-                <center><img src='/local/verypoor-aqi.png'><BR>
+                <center><img height='67' src='/local/verypoor-aqi.png'><BR>
 
-                <font size = 3px>Hourly Air Quality is<font color = red>
-                Very Poor </font></font>
+                <font size = 3px>Hourly Air Quality is  <font color = red> Very
+                Poor </font></font>
 
 
                 Hourly AQI is: <font size = 3px color = red> {{
@@ -107,10 +107,10 @@ cards:
             card:
               type: markdown
               content: >-
-                <center><img src='/local/extremelypoor-aqi.png'><BR>
+                <center><img height='67' src='/local/extremelypoor-aqi.png'><BR>
 
-                <font size = 3px>Hourly Air Quality is<font color =
-                purple> Extremely Poor </font></font>
+                <font size = 3px>Hourly Air Quality is  <font color = purple>
+                Extremely Poor </font></font>
 
 
                 Hourly AQI is: <font size = 3px color = purple> {{
@@ -141,11 +141,11 @@ cards:
             card:
               type: markdown
               content: >-
-                <center><img src='/local/good-aqi.png'><BR>
+                <center><img height='67' src='/local/good-aqi.png'><BR>
 
 
-                <font size = 3px>Daily Air Quality is<font color = green>
-                Good </font></font>
+                <font size = 3px>Daily Air Quality is  <font color = green> Good
+                </font></font>
 
 
                 Daily AQI is: <font size = 3px color = green> {{
@@ -164,10 +164,10 @@ cards:
             card:
               type: markdown
               content: >-
-                <center><img src='/local/fair-aqi.png'><BR>
+                <center><img height='67' src='/local/fair-aqi.png'><BR>
 
-                <font size = 3px>Daily Air Quality is<font color =
-                yellow> Fair </font></font>
+                <font size = 3px>Daily Air Quality is  <font color = yellow>
+                Fair </font></font>
 
 
                 Daily AQI is: <font size = 3px color = yellow> {{
@@ -186,10 +186,10 @@ cards:
             card:
               type: markdown
               content: >-
-                <center><img src='/local/poor-aqi.png'><BR>
+                <center><img height='67' src='/local/poor-aqi.png'><BR>
 
-                <font size = 3px>Daily Air Quality is<font color =
-                orange> Poor </font></font>
+                <font size = 3px>Daily Air Quality is  <font color = orange>
+                Poor </font></font>
 
 
                 Daily AQI is: <font size = 3px color = orange> {{
@@ -208,10 +208,10 @@ cards:
             card:
               type: markdown
               content: >-
-                <center><img src='/local/verypoor-aqi.png'><BR>
+                <center><img height='67' src='/local/verypoor-aqi.png'><BR>
 
-                <font size = 3px>Daily Air Quality is<font color = red>
-                Very Poor </font></font>
+                <font size = 3px>Daily Air Quality is  <font color = red> Very
+                Poor </font></font>
 
 
                 Daily AQI is: <font size = 3px color = red> {{
@@ -230,10 +230,10 @@ cards:
             card:
               type: markdown
               content: >-
-                <center><img src='/local/extremelypoor-aqi.png'><BR>
+                <center><img height='67' src='/local/extremelypoor-aqi.png'><BR>
 
-                <font size = 3px>Daily Air Quality is<font color =
-                purple> Extremely Poor </font></font>
+                <font size = 3px>Daily Air Quality is  <font color = purple>
+                Extremely Poor </font></font>
 
 
                 Daily AQI is: <font size = 3px color = purple> {{
