@@ -18,14 +18,14 @@ cards:
             card:
               type: markdown
               content: >-
-                <center><img src='/local/good-aqi.png'><BR>
+                <center><img src='good-aqi.png'><BR>
 
 
-                <font size = 4px> The Hourly Air Quality is  <font color =
+                <font size = 3px>Hourly Air Quality is<font color =
                 green> Good </font></font>
 
 
-                The AQI is: <font size = 4px color = green> {{
+                Hourly AQI is: <font size = 3px color = green> {{
                 states('sensor.epa_pm2_5aqi') }} </font></center>
           - type: conditional
             conditions:
@@ -41,13 +41,13 @@ cards:
             card:
               type: markdown
               content: >-
-                <center><img src='/local/fair-aqi.png'><BR>
+                <center><img src='fair-aqi.png'><BR>
 
-                <font size = 4px> The Hourly Air Quality is  <font color =
+                <font size = 3px>Hourly Air Quality is<font color =
                 yellow> Fair </font></font>
 
 
-                The AQI is: <font size = 4px color = yellow> {{
+                Hourly AQI is: <font size = 3px color = yellow> {{
                 states('sensor.epa_pm2_5aqi') }} </font></center>
           - type: conditional
             conditions:
@@ -63,13 +63,13 @@ cards:
             card:
               type: markdown
               content: >-
-                <center><img src='/local/poor-aqi.png'><BR>
+                <center><img src='poor-aqi.png'><BR>
 
-                <font size = 4px> The Hourly Air Quality is  <font color =
+                <font size = 3px>Hourly Air Quality is<font color =
                 orange> Poor </font></font>
 
 
-                The AQI is: <font size = 4px color = orange> {{
+                Hourly AQI is: <font size = 3px color = orange> {{
                 states('sensor.epa_pm2_5aqi') }} </font></center>
           - type: conditional
             conditions:
@@ -85,13 +85,13 @@ cards:
             card:
               type: markdown
               content: >-
-                <center><img src='/local/verypoor-aqi.png'><BR>
+                <center><img src='verypoor-aqi.png'><BR>
 
-                <font size = 4px> The Hourly Air Quality is  <font color = red>
+                <font size = 3px>Hourly Air Quality is<font color = red>
                 Very Poor </font></font>
 
 
-                The AQI is: <font size = 4px color = red> {{
+                Hourly AQI is: <font size = 3px color = red> {{
                 states('sensor.epa_pm2_5aqi') }} </font></center>
           - type: conditional
             conditions:
@@ -107,13 +107,13 @@ cards:
             card:
               type: markdown
               content: >-
-                <center><img src='/local/extremelypoor-aqi.png'><BR>
+                <center><img src='extremelypoor-aqi.png'><BR>
 
-                <font size = 4px> The Hourly Air Quality is  <font color =
+                <font size = 3px>Hourly Air Quality is<font color =
                 purple> Extremely Poor </font></font>
 
 
-                The AQI is: <font size = 4px color = purple> {{
+                Hourly AQI is: <font size = 3px color = purple> {{
                 states('sensor.epa_pm2_5aqi') }} </font></center>
       - type: gauge
         entity: sensor.epa_air_quality_hourly_pm2_5
@@ -141,14 +141,14 @@ cards:
             card:
               type: markdown
               content: >-
-                <center><img src='/local/good-aqi.png'><BR>
+                <center><img src='good-aqi.png'><BR>
 
 
-                <font size = 4px> The Daily Air Quality is  <font color = green>
+                <font size = 3px>Daily Air Quality is<font color = green>
                 Good </font></font>
 
 
-                The AQI is: <font size = 4px color = green> {{
+                Daily AQI is: <font size = 3px color = green> {{
                 states('sensor.epa_daily_aqi') }} </font></center>
           - type: conditional
             conditions:
@@ -164,13 +164,13 @@ cards:
             card:
               type: markdown
               content: >-
-                <center><img src='/local/fair-aqi.png'><BR>
+                <center><img src='fair-aqi.png'><BR>
 
-                <font size = 4px> The Daily Air Quality is  <font color =
+                <font size = 3px>Daily Air Quality is<font color =
                 yellow> Fair </font></font>
 
 
-                The AQI is: <font size = 4px color = yellow> {{
+                Daily AQI is: <font size = 3px color = yellow> {{
                 states('sensor.epa_daily_aqi') }} </font></center>
           - type: conditional
             conditions:
@@ -186,13 +186,13 @@ cards:
             card:
               type: markdown
               content: >-
-                <center><img src='/local/poor-aqi.png'><BR>
+                <center><img src='poor-aqi.png'><BR>
 
-                <font size = 4px> The Daily Air Quality is  <font color =
+                <font size = 3px>Daily Air Quality is<font color =
                 orange> Poor </font></font>
 
 
-                The AQI is: <font size = 4px color = orange> {{
+                Daily AQI is: <font size = 3px color = orange> {{
                 states('sensor.epa_daily_aqi') }} </font></center>
           - type: conditional
             conditions:
@@ -208,13 +208,13 @@ cards:
             card:
               type: markdown
               content: >-
-                <center><img src='/local/verypoor-aqi.png'><BR>
+                <center><img src='verypoor-aqi.png'><BR>
 
-                <font size = 4px> The Daily Air Quality is  <font color = red>
+                <font size = 3px>Daily Air Quality is<font color = red>
                 Very Poor </font></font>
 
 
-                The AQI is: <font size = 4px color = red> {{
+                Daily AQI is: <font size = 3px color = red> {{
                 states('sensor.epa_daily_aqi') }} </font></center>
           - type: conditional
             conditions:
@@ -230,13 +230,13 @@ cards:
             card:
               type: markdown
               content: >-
-                <center><img src='/local/extremelypoor-aqi.png'><BR>
+                <center><img src='extremelypoor-aqi.png'><BR>
 
-                <font size = 4px> The Daily Air Quality is  <font color =
+                <font size = 3px>Daily Air Quality is<font color =
                 purple> Extremely Poor </font></font>
 
 
-                The AQI is: <font size = 4px color = purple> {{
+                Daily AQI is: <font size = 3px color = purple> {{
                 states('sensor.epa_daily_aqi') }} </font></center>
       - type: gauge
         entity: sensor.epa_air_quality_daily_average_pm2_5
