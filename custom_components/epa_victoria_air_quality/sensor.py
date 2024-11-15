@@ -25,21 +25,27 @@ from homeassistant.const import (
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceEntryType
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.typing import StateType
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from . import EPAConfigEntry
 from .collector import Collector
 from .const import (
+    ATTR_CONFIDENCE,
+    ATTR_DATA_SOURCE,
     ATTR_ENTRY_TYPE,
+    ATTR_TOTAL_SAMPLE,
     ATTRIBUTION,
     DOMAIN,
     MANUFACTURER,
+    SCAN_INTERVAL,
     TYPE_AQI,
     TYPE_AQI_24H,
     TYPE_AQI_PM25,
     TYPE_AQI_PM25_24H,
     TYPE_PM25,
     TYPE_PM25_24H,
+    UNTIL,
 )
 from .coordinator import EPADataUpdateCoordinator
 
@@ -106,7 +112,7 @@ SENSORS: dict[str, SensorEntityDescription] = {
     ),
 }
 
-SCAN_INTERVAL = timedelta(minutes=5)
+SCAN_INTERVAL = timedelta(minutes=SCAN_INTERVAL)
 
 
 async def async_setup_entry(
@@ -175,14 +181,14 @@ class EPAQualitySensor(CoordinatorEntity[EPADataUpdateCoordinator], SensorEntity
         sensor_name = entity_description.key
         super().__init__(coordinator)
 
-        self.entity_description = entity_description
-        self.sensor_name = sensor_name
-        self._coordinator = coordinator
+        self.entity_description: str = entity_description
+        self.sensor_name: str = sensor_name
+        self._coordinator: EPADataUpdateCoordinator = coordinator
         self._collector: Collector = collector
-        self._update_policy = get_sensor_update_policy()
-        self._attr_unique_id = f"{entity_description.key}"
-        self._attributes = {}
-        self._attr_extra_state_attributes = {}
+        self._update_policy: dict = get_sensor_update_policy()
+        self._attr_unique_id: str = f"{entity_description.key}"
+        self._attributes: dict = {}
+        self._attr_extra_state_attributes: dict = {}
 
         try:
             self._sensor_data = self._collector.get_sensor(entity_description.key)
@@ -192,8 +198,6 @@ class EPAQualitySensor(CoordinatorEntity[EPADataUpdateCoordinator], SensorEntity
                 entity_description.key,
                 e,
             )
-            self._sensor_data = None
-        else:
             self._sensor_data = None
 
         if self._sensor_data is None:
@@ -290,6 +294,26 @@ class EPAQualitySensor(CoordinatorEntity[EPADataUpdateCoordinator], SensorEntity
 
         """
         return False
+
+    @property
+    def state(self) -> StateType:
+        """Return the state of the sensor."""
+
+        if self.entity_description.key.find("24h") > 0:
+            self._attr_extra_state_attributes = {
+                ATTR_CONFIDENCE: self._collector.get_confidence_24h(),
+                ATTR_TOTAL_SAMPLE: self._collector.get_total_sample_24h(),
+                UNTIL: self._collector.until,
+            }
+        else:
+            self._attr_extra_state_attributes = {
+                ATTR_CONFIDENCE: self._collector.get_confidence(),
+                ATTR_TOTAL_SAMPLE: self._collector.get_total_sample(),
+                ATTR_DATA_SOURCE: self._collector.get_data_source(),
+                UNTIL: self._collector.until,
+            }
+
+        return self.native_value
 
     async def async_added_to_hass(self):
         """Call when an entity is added to hass."""

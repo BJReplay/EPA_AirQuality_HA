@@ -11,7 +11,13 @@ import aqi
 from homeassistant.util import Throttle
 
 from .const import (
+    ATTR_CONFIDENCE,
+    ATTR_CONFIDENCE_24H,
+    ATTR_DATA_SOURCE,
+    ATTR_TOTAL_SAMPLE,
+    ATTR_TOTAL_SAMPLE_24H,
     AVERAGE_VALUE,
+    CONFIDENCE,
     HEALTH_ADVICE,
     PARAMETERS,
     READINGS,
@@ -19,6 +25,7 @@ from .const import (
     SITE_ID,
     TIME_SERIES_NAME,
     TIME_SERIES_READINGS,
+    TOTAL_SAMPLE,
     TYPE_AQI,
     TYPE_AQI_24H,
     TYPE_AQI_PM25,
@@ -46,24 +53,28 @@ class Collector:
         longitude: float = 0,
     ) -> None:
         """Init collector."""
-        self.locations_data = {}
-        self.observation_data = {}
-        self.latitude = latitude
-        self.longitude = longitude
-        self.api_key = api_key
-        self.version_string = version_string
-        self.until = ""
-        self.site_id = ""
-        self.aqi = float(0)
-        self.aqi_24h = float(0)
-        self.aqi_pm25 = ""
-        self.aqi_pm25_24h = ""
-        self.pm25 = float(0)
-        self.pm25_24h = float(0)
-        self.last_updated = ""
-        self.site_found = False
-
-        self.headers = {
+        self.locations_data: dict = {}
+        self.observation_data: dict = {}
+        self.latitude: float = latitude
+        self.longitude: float = longitude
+        self.api_key: str = api_key
+        self.version_string: str = version_string
+        self.until: str = ""
+        self.site_id: str = ""
+        self.aqi: float = 0
+        self.aqi_24h: float = 0
+        self.aqi_pm25: str = ""
+        self.aqi_pm25_24h: str
+        self.confidence: float = 0
+        self.confidence_24h: float = 0
+        self.data_source_1h: str = ""
+        self.pm25: float = 0
+        self.pm25_24h: float = 0
+        self.total_sample: float = 0
+        self.total_sample_24h: float = 0
+        self.last_updated: dt = dt.fromtimestamp(0)
+        self.site_found: bool = False
+        self.headers: dict = {
             "Accept": "application/json",
             "User-Agent": "ha-epa-integration/" + self.version_string,
             "X-API-Key": self.api_key,
@@ -86,7 +97,7 @@ class Collector:
                         self.site_id = self.locations_data[RECORDS][0][SITE_ID]
                         _LOGGER.debug("EPA Site ID Located: %s", self.site_id)
                         self.site_found = True
-                    except:
+                    except KeyError:
                         _LOGGER.debug(
                             "Exception in get_locations_data(): %s",
                             traceback.format_exc(),
@@ -157,6 +168,39 @@ class Collector:
             return self.aqi_pm25_24h
         return ""
 
+    def get_confidence(self) -> float:
+        """Return the EPA reading confidence.
+
+        Returns:
+            float: EPA reading confidence
+
+        """
+        if self.site_found:
+            return self.confidence
+        return 0
+
+    def get_confidence_24h(self) -> float:
+        """Return the EPA reading confidence over 24 hours.
+
+        Returns:
+            float: EPA reading confidence over 24 hours
+
+        """
+        if self.site_found:
+            return self.confidence_24h
+        return 0
+
+    def get_data_source(self) -> str:
+        """Return the EPA Reading Data Source.
+
+        Returns:
+            str: EPA Site Reading Data Source for the 1 Hour Reading
+
+        """
+        if self.site_found:
+            return self.data_source_1h
+        return ""
+
     def get_pm25(self) -> float:
         """Return the EPA Site pm25.
 
@@ -177,6 +221,28 @@ class Collector:
         """
         if self.site_found:
             return self.pm25_24h
+        return 0
+
+    def get_total_sample(self) -> float:
+        """Return the EPA reading total samples.
+
+        Returns:
+            float: EPA reading total samples
+
+        """
+        if self.site_found:
+            return self.total_sample
+        return 0
+
+    def get_total_sample_24h(self) -> float:
+        """Return the EPA reading total samples over 24 hours.
+
+        Returns:
+            float: EPA reading total samples over 24 hours
+
+        """
+        if self.site_found:
+            return self.total_sample_24h
         return 0
 
     def get_until(self) -> str:
@@ -206,28 +272,50 @@ class Collector:
 
     async def extract_observation_data(self):
         """Extract Observation Data to individual fields."""
-        parameters = {}
-        time_series_readings = {}
-        time_series_reading = {}
+        parameters: dict = {}
+        time_series_readings: dict = {}
+        time_series_reading: dict = {}
         self.observation_data = {}
         if self.observations_data.get(PARAMETERS) is not None:
             parameters = self.observations_data[PARAMETERS][0]
             if parameters.get(TIME_SERIES_READINGS) is not None:
                 time_series_readings = parameters[TIME_SERIES_READINGS]
                 for time_series_reading in time_series_readings:
-                    reading = time_series_reading[READINGS][0]
+                    reading: dict = time_series_reading[READINGS][0]
                     match time_series_reading[TIME_SERIES_NAME]:
                         case "1HR_AV":
-                            self.aqi_pm25 = reading[HEALTH_ADVICE]
-                            self.pm25 = reading[AVERAGE_VALUE]
-                            self.aqi = aqi.to_aqi([(aqi.POLLUTANT_PM25, self.pm25)])
+                            self.confidence = reading[CONFIDENCE]
+                            self.total_sample = reading[TOTAL_SAMPLE]
+                            if self.confidence > 0 and self.total_sample > 0:
+                                self.aqi_pm25 = reading[HEALTH_ADVICE]
+                                self.pm25 = reading[AVERAGE_VALUE]
+                                self.aqi = aqi.to_aqi([(aqi.POLLUTANT_PM25, self.pm25)])
+                                self.data_source_1h = time_series_reading[
+                                    TIME_SERIES_NAME
+                                ]
                             self.until = reading[UNTIL]
                         case "24HR_AV":
+                            self.confidence_24h = reading[CONFIDENCE]
+                            self.total_sample_24h = reading[TOTAL_SAMPLE]
                             self.aqi_pm25_24h = reading[HEALTH_ADVICE]
                             self.pm25_24h = reading[AVERAGE_VALUE]
                             self.aqi_24h = aqi.to_aqi(
                                 [(aqi.POLLUTANT_PM25, self.pm25_24h)]
                             )
+                            if (
+                                self.confidence == 0
+                                and self.total_sample == 0
+                                and self.confidence_24h > 0
+                                and self.total_sample_24h > 0
+                            ):
+                                # Update 1 Hour readings
+                                self.aqi_pm25 = self.aqi_pm25_24h
+                                self.pm25 = self.pm25_24h
+                                self.aqi = self.aqi_24h
+                                self.data_source_1h = time_series_reading[
+                                    TIME_SERIES_NAME
+                                ]
+
             self.last_updated = dt.now()
             self.observation_data = {
                 TYPE_AQI: self.aqi,
@@ -236,6 +324,11 @@ class Collector:
                 TYPE_AQI_PM25_24H: self.aqi_pm25_24h,
                 TYPE_PM25: self.pm25,
                 TYPE_PM25_24H: self.pm25_24h,
+                ATTR_CONFIDENCE: self.confidence,
+                ATTR_CONFIDENCE_24H: self.confidence_24h,
+                ATTR_DATA_SOURCE: self.data_source_1h,
+                ATTR_TOTAL_SAMPLE: self.total_sample,
+                ATTR_TOTAL_SAMPLE_24H: self.total_sample_24h,
                 UNTIL: self.until,
             }
 
@@ -252,8 +345,10 @@ class Collector:
                 ) as resp:
                     self.observations_data = await resp.json()
                     await self.extract_observation_data()
-        except:
+        except ConnectionRefusedError as e:
+            _LOGGER.error("Connection error in async_update, connection refused: %s", e)
+        except Exception:  # noqa: BLE001
             _LOGGER.debug(
-                "Exception in get_locations_data(): %s",
+                "Exception in async_update(): %s",
                 traceback.format_exc(),
             )
