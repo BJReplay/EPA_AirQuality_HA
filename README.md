@@ -9,6 +9,4 @@ Example of Melbourne CBD Sensor when it goes offline - integration switches to 2
 
 [<img src="https://github.com/BJReplay/EPA_AirQuality_HA/blob/main/.github/SCREENSHOTS/1HR_AV_Unavailable.png">](https://github.com/BJReplay/EPA_AirQuality_HA/blob/main/.github/SCREENSHOTS/1HR_AV_Unavailable.png)
 
-Inspired by @loryanstrant 
-
-https://www.loryanstrant.com/2023/07/23/track-air-quality-with-home-assistant-and-epa-data/ 
+Inspired by [@loryanstrant](https://github.com/loryanstrant) who published [this article](https://www.loryanstrant.com/2023/07/23/track-air-quality-with-home-assistant-and-epa-data/) that helped me track air quality in HA, and created the first repo for this project. 
