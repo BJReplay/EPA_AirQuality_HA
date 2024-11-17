@@ -129,7 +129,7 @@ cards:
           - from: 100
             color: red
           - from: 300
-            color: black
+            color: purple
   - type: horizontal-stack
     cards:
       - type: horizontal-stack
@@ -259,4 +259,4 @@ cards:
           - from: 100
             color: red
           - from: 300
-            color: black
+            color: purple
