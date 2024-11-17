@@ -117,12 +117,19 @@ cards:
                 states('sensor.epa_air_quality_hourly_aqi') }} </font></center>
       - type: gauge
         entity: sensor.epa_air_quality_hourly_pm2_5
-        max: 300
+        max: 500
         needle: true
-        severity:
-          green: 0
-          yellow: 100
-          red: 200
+        segments:
+          - from: 0
+            color: green
+          - from: 25
+            color: yellow
+          - from: 50
+            color: orange
+          - from: 100
+            color: red
+          - from: 300
+            color: black
   - type: horizontal-stack
     cards:
       - type: horizontal-stack
@@ -240,9 +247,16 @@ cards:
                 states('sensor.epa_air_quality_daily_aqi') }} </font></center>
       - type: gauge
         entity: sensor.epa_air_quality_daily_pm2_5
-        max: 300
+        max: 500
         needle: true
-        severity:
-          green: 0
-          yellow: 100
-          red: 200
+        segments:
+          - from: 0
+            color: green
+          - from: 25
+            color: yellow
+          - from: 50
+            color: orange
+          - from: 100
+            color: red
+          - from: 300
+            color: black
