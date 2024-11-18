@@ -34,6 +34,7 @@
     "options": {
         "error": {
             "bad_location": "Unsupported Lat/Lon",
+            "bad_api": "Unable to retrieve Location List from EPA - probably bad API Key",
             "cannot_connect": "Cannot connect",
             "unknown": "Unknown error"
         },
