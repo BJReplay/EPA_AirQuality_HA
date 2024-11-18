@@ -11,8 +11,18 @@
                     "site_id": "[%key:common::config_flow::data::site_id%]"
                 }
             }
-        }
-    },
+        },
+        "location": {
+            "title": "[%key:common::config_flow::title%]",
+            "description": "[%key:common::config_flow::description%]",
+              "data": {
+                  "api_key": "[%key:common::config_flow::data::api_key%]",
+                  "latitude": "[%key:common::config_flow::data::latitude%]",
+                  "longitude": "[%key:common::config_flow::data::longitude%]",
+                  "site_id": "[%key:common::config_flow::data::site_id%]"
+              }
+          }
+  },
     "options": {
         "step": {
             "init": {

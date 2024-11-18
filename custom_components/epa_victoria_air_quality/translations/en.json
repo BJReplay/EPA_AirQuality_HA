@@ -17,6 +17,17 @@
                     "site_id": "EPA Site ID",
                     "choose_site": "Choose EPA Site"
                 }
+            },
+            "location": {
+                "title": "Set up EPA (Victoria) Air Monitoring",
+                "description": "Nearest Site ID is determined based on Home Assistant Latitude and Longitude, or can be supplied if you know the Site ID you want to monitor.",
+                "data": {
+                    "api_key": "API Key",
+                    "latitude": "Latitude",
+                    "longitude": "Longitude",
+                    "site_id": "EPA Site ID",
+                    "choose_site": "Choose EPA Site"
+                }
             }
         }
     },

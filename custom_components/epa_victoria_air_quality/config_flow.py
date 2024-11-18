@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from geopy import distance
 import voluptuous as vol
 
 from homeassistant import config_entries
@@ -20,7 +21,7 @@ from homeassistant.helpers.selector import (
 )
 
 from .collector import Collector
-from .const import CONF_SITE_ID, DOMAIN, SITE_ID, SITE_NAME, TITLE
+from .const import CONF_SITE_ID, DISTANCE, DOMAIN, SITE_ID, SITE_NAME, TITLE
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -134,7 +135,7 @@ class EPAVicConfigFlow(ConfigFlow, domain=DOMAIN):
 
         """
 
-        locations: list[SelectOptionDict]
+        epa_locs: list[SelectOptionDict]
         errors = {}
 
         if not self.collector.valid_location_list():
@@ -142,10 +143,23 @@ class EPAVicConfigFlow(ConfigFlow, domain=DOMAIN):
             if not self.collector.valid_location_list():
                 _LOGGER.debug("Unable to retrieve location list from EPA")
                 errors["base"] = "bad_api"
+        lat = self.hass.config.latitude
+        lon = self.hass.config.longitude
+        epa_locs_with_dist: list = [
+            {
+                SITE_NAME: loc[SITE_NAME],
+                SITE_ID: loc[SITE_ID],
+                DISTANCE: distance.geodesic(
+                    (lat, lon), (loc[CONF_LATITUDE], loc[CONF_LONGITUDE])
+                ).meters,
+            }
+            for loc in self.collector.get_location_list()
+        ]
+        sorted_locs = sorted(epa_locs_with_dist, key=lambda itm: itm.get(DISTANCE))
 
-        locations: list[SelectOptionDict] = [
-            SelectOptionDict(label=location[SITE_NAME], value=location[SITE_ID])
-            for location in self.collector.get_location_list()
+        epa_locs: list[SelectOptionDict] = [
+            SelectOptionDict(label=loc[SITE_NAME], value=loc[SITE_ID])
+            for loc in sorted_locs
         ]
 
         if user_input is not None:
@@ -205,7 +219,7 @@ class EPAVicConfigFlow(ConfigFlow, domain=DOMAIN):
                         CONF_SITE_ID, default=self.collector.get_location()
                     ): SelectSelector(
                         SelectSelectorConfig(
-                            options=locations,
+                            options=epa_locs,
                             mode=SelectSelectorMode.DROPDOWN,
                             translation_key="choose_site",
                         )
