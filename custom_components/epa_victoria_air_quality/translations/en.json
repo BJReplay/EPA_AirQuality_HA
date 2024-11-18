@@ -9,7 +9,7 @@
         "step": {
             "user": {
                 "title": "Set up EPA (Victoria) Air Monitoring",
-                "description": "You need to sign up for an EPA Developer account as described in the readme and obtain an API Key.\n\nLatitude and longitude will be used to find the nearest EPA air quality monitoring station to obtain air quality data for your location. The default values come from your homeassistant \"Home\" zone (See Settings/Areas & Zones/Zones).\n\nSite ID will be determined based on Latitude and Longitude, or can be supplied if you know the Site ID you want to monitor.",
+                "description": "You need to sign up for an EPA Developer account as described in the readme and obtain an API Key.",
                 "data": {
                     "api_key": "API Key",
                     "latitude": "Latitude",
@@ -20,7 +20,7 @@
             },
             "location": {
                 "title": "Set up EPA (Victoria) Air Monitoring",
-                "description": "Nearest Site ID is determined based on Home Assistant Latitude and Longitude, or can be supplied if you know the Site ID you want to monitor.",
+                "description": "Latitude and longitude will be used to find the nearest EPA air quality monitoring station to obtain air quality data for your location.\n\nThe default values come from your homeassistant \"Home\" zone (See Settings/Areas & Zones/Zones).",
                 "data": {
                     "api_key": "API Key",
                     "latitude": "Latitude",
