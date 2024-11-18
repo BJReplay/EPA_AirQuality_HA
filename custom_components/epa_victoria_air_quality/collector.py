@@ -8,6 +8,7 @@ import traceback
 import aiohttp
 import aqi
 
+from homeassistant.const import CONF_LATITUDE, CONF_LONGITUDE
 from homeassistant.util import Throttle
 
 from .const import (
@@ -18,11 +19,19 @@ from .const import (
     ATTR_TOTAL_SAMPLE_24H,
     AVERAGE_VALUE,
     CONFIDENCE,
+    COORDINATES,
+    GEOMETRY,
     HEALTH_ADVICE,
+    HEALTH_PARAMETER,
     PARAMETERS,
     READINGS,
     RECORDS,
+    SITE_HEALTH_ADVICES,
     SITE_ID,
+    SITE_NAME,
+    SITE_TYPE,
+    SITE_TYPE_SENSOR,
+    SITE_TYPE_STANDARD,
     TIME_SERIES_NAME,
     TIME_SERIES_READINGS,
     TOTAL_SAMPLE,
@@ -35,6 +44,7 @@ from .const import (
     UNTIL,
     URL_BASE,
     URL_FIND_SITE,
+    URL_LIST_SITE,
     URL_PARAMETERS,
 )
 
@@ -53,7 +63,8 @@ class Collector:
         longitude: float = 0,
     ) -> None:
         """Init collector."""
-        self.locations_data: dict = {}
+        self.location_data: dict = {}
+        self.locations_list: list = []
         self.observation_data: dict = {}
         self.latitude: float = latitude
         self.longitude: float = longitude
@@ -61,6 +72,7 @@ class Collector:
         self.version_string: str = version_string
         self.until: str = ""
         self.site_id: str = ""
+        self.site_name: str = ""
         self.aqi: float = 0
         self.aqi_24h: float = 0
         self.aqi_pm25: str = ""
@@ -74,6 +86,7 @@ class Collector:
         self.total_sample_24h: float = 0
         self.last_updated: dt = dt.fromtimestamp(0)
         self.site_found: bool = False
+        self.sites_found: bool = False
         self.headers: dict = {
             "Accept": "application/json",
             "User-Agent": "ha-epa-integration/" + self.version_string,
@@ -84,7 +97,7 @@ class Collector:
             self.site_id = epa_site_id
             self.site_found = True
 
-    async def get_locations_data(self):
+    async def get_location_data(self):
         """Get JSON location name from EPA API endpoint."""
         async with aiohttp.ClientSession(headers=self.headers) as session:
             if self.latitude != 0 and self.longitude != 0:
@@ -92,17 +105,71 @@ class Collector:
                 response = await session.get(url)
 
                 if response is not None and response.status == 200:
-                    self.locations_data = await response.json()
+                    self.location_data = await response.json()
                     try:
-                        self.site_id = self.locations_data[RECORDS][0][SITE_ID]
+                        self.site_id = self.location_data[RECORDS][0][SITE_ID]
+                        self.site_name = self.location_data[RECORDS][0][SITE_NAME]
                         _LOGGER.debug("EPA Site ID Located: %s", self.site_id)
                         self.site_found = True
                     except KeyError:
                         _LOGGER.debug(
-                            "Exception in get_locations_data(): %s",
+                            "Exception in get_location_data(): %s",
                             traceback.format_exc(),
                         )
                         self.site_found = False
+
+    async def get_locations_list(self):
+        """Get JSON location list from EPA API endpoint."""
+        async with aiohttp.ClientSession(headers=self.headers) as session:
+            if self.latitude != 0 and self.longitude != 0:
+                url = f"{URL_BASE}{URL_LIST_SITE}"
+                response = await session.get(url)
+
+                if response is not None and response.status == 200:
+                    self.locations_list = []
+                    locations_list = await response.json()
+                    try:
+                        records: dict = {}
+                        record: dict = {}
+                        siteHealthAdvices: dict = {}
+                        if locations_list.get(RECORDS) is not None:
+                            records = locations_list[RECORDS]
+                            for record in records:
+                                site_id = record[SITE_ID]
+                                site_name = record[SITE_NAME]
+                                site_type = record[SITE_TYPE]
+                                if site_type in (
+                                    SITE_TYPE_SENSOR,
+                                    SITE_TYPE_STANDARD,
+                                ):  # If it isn't a camera
+                                    if (
+                                        record.get(SITE_HEALTH_ADVICES)[0] is not None
+                                    ):  # Get Health Site Advices
+                                        siteHealthAdvices = record[SITE_HEALTH_ADVICES][
+                                            0
+                                        ]
+                                        if (
+                                            siteHealthAdvices.get(HEALTH_PARAMETER)
+                                            is not None
+                                        ):  # If site has a Health Parameter
+                                            latitude = record[GEOMETRY][COORDINATES][0]
+                                            longitude = record[GEOMETRY][COORDINATES][1]
+                                            self.locations_list.append(
+                                                {
+                                                    SITE_ID: site_id,
+                                                    SITE_NAME: site_name,
+                                                    CONF_LATITUDE: latitude,
+                                                    CONF_LONGITUDE: longitude,
+                                                }
+                                            )
+                        _LOGGER.debug("EPA Site List Loaded: %s", self.site_id)
+                        self.sites_found = True
+                    except KeyError:
+                        _LOGGER.debug(
+                            "Exception in get_locations_list(): %s",
+                            traceback.format_exc(),
+                        )
+                        self.sites_found = False
 
     def valid_location(self) -> bool:
         """Return true if a valid location has been found from the latitude and longitude.
@@ -112,6 +179,15 @@ class Collector:
 
         """
         return self.site_found
+
+    def valid_location_list(self) -> bool:
+        """Return true if a valid location list has been loaded.
+
+        Returns:
+            bool: True if a valid EPA location list has been loaded
+
+        """
+        return self.sites_found
 
     def get_location(self) -> str:
         """Return the EPA Site Location GUID.
@@ -123,6 +199,17 @@ class Collector:
         if self.site_found:
             return self.site_id
         return ""
+
+    def get_location_list(self) -> list:
+        """Return the EPA Site Location GUID.
+
+        Returns:
+            str: EPA Site Location GUID
+
+        """
+        if self.site_found:
+            return self.locations_list
+        return []
 
     def get_aqi(self) -> float:
         """Return the EPA Site aqi.
@@ -337,11 +424,11 @@ class Collector:
         """Refresh the data on the collector object."""
         try:
             async with aiohttp.ClientSession(headers=self.headers) as session:
-                if self.locations_data is None:
-                    await self.get_locations_data()
+                if self.location_data is None:
+                    await self.get_location_data()
 
                 async with session.get(
-                    URL_BASE + self.site_id + URL_PARAMETERS
+                    URL_BASE + self.get_location() + URL_PARAMETERS
                 ) as resp:
                     self.observations_data = await resp.json()
                     await self.extract_observation_data()
@@ -350,5 +437,19 @@ class Collector:
         except Exception:  # noqa: BLE001
             _LOGGER.debug(
                 "Exception in async_update(): %s",
+                traceback.format_exc(),
+            )
+
+    async def async_setup(self):
+        """Set up the location list for the collector object."""
+        try:
+            if self.locations_list is None or self.locations_list == []:
+                await self.get_locations_list()
+
+        except ConnectionRefusedError as e:
+            _LOGGER.error("Connection error in async_setup, connection refused: %s", e)
+        except Exception:  # noqa: BLE001
+            _LOGGER.debug(
+                "Exception in async_setup(): %s",
                 traceback.format_exc(),
             )

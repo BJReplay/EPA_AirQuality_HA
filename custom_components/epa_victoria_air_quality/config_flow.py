@@ -12,9 +12,15 @@ from homeassistant.config_entries import ConfigEntry, ConfigFlow, OptionsFlow
 from homeassistant.const import CONF_API_KEY, CONF_LATITUDE, CONF_LONGITUDE
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
+from homeassistant.helpers.selector import (
+    SelectOptionDict,
+    SelectSelector,
+    SelectSelectorConfig,
+    SelectSelectorMode,
+)
 
 from .collector import Collector
-from .const import CONF_SITE_ID, DOMAIN, TITLE
+from .const import CONF_SITE_ID, DOMAIN, SITE_ID, SITE_NAME, TITLE
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -28,7 +34,7 @@ class EPAVicConfigFlow(ConfigFlow, domain=DOMAIN):
         self.data = {}
         self.collector: Collector = None
 
-    VERSION = 1
+    VERSION = 2
 
     @staticmethod
     @callback
@@ -66,29 +72,31 @@ class EPAVicConfigFlow(ConfigFlow, domain=DOMAIN):
                 # Create the collector object with the given parameters
                 self.collector = Collector(
                     api_key=user_input[CONF_API_KEY],
-                    latitude=user_input[CONF_LATITUDE],
-                    longitude=user_input[CONF_LONGITUDE],
-                    epa_site_id=user_input[CONF_SITE_ID],
+                    latitude=self.hass.config.latitude,
+                    longitude=self.hass.config.longitude,
                 )
-
-                options = {
-                    CONF_LATITUDE: user_input[CONF_LATITUDE],
-                    CONF_LONGITUDE: user_input[CONF_LONGITUDE],
-                    CONF_API_KEY: user_input[CONF_API_KEY],
-                    CONF_SITE_ID: user_input[CONF_SITE_ID],
-                }
 
                 # Save the user input into self.data so it's retained
                 self.data = user_input
 
                 # Check if location is valid
-                await self.collector.get_locations_data()
-                if not self.collector.valid_location():
-                    _LOGGER.debug("Unsupported Latitude/Longitude")
-                    errors["base"] = "bad_location"
+                await self.collector.get_location_data()
+                await self.collector.async_setup()
+                if not self.collector.valid_location_list():
+                    _LOGGER.debug("Unable to retrieve location list from EPA")
+                    errors["base"] = "bad_api"
                 else:
-                    # Populate observations
-                    await self.collector.async_update()
+                    # Move onto the next step of the config flow
+                    options = {
+                        CONF_API_KEY: user_input[CONF_API_KEY],
+                    }
+                    return await self.async_step_location()
+
+                options = {
+                    CONF_LATITUDE: self.hass.config.latitude,
+                    CONF_LONGITUDE: self.hass.config.longitude,
+                    CONF_API_KEY: user_input[CONF_API_KEY],
+                }
 
             except Exception:
                 _LOGGER.exception("Unexpected exception")
@@ -105,13 +113,103 @@ class EPAVicConfigFlow(ConfigFlow, domain=DOMAIN):
             data_schema=vol.Schema(
                 {
                     vol.Required(CONF_API_KEY, default=""): str,
+                }
+            ),
+            errors=errors,
+            description_placeholders={
+                CONF_API_KEY: "Enter your API key provided by EPA Victoria.",
+            },
+        )
+
+    async def async_step_location(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Handle a flow initiated by the user.
+
+        Arguments:
+            user_input (dict[str, Any] | None, optional): The config submitted by a user. Defaults to None.
+
+        Returns:
+            FlowResult: The form to show.
+
+        """
+
+        locations: list[SelectOptionDict]
+        errors = {}
+
+        if not self.collector.valid_location_list():
+            await self.collector.async_setup()
+            if not self.collector.valid_location_list():
+                _LOGGER.debug("Unable to retrieve location list from EPA")
+                errors["base"] = "bad_api"
+
+        locations: list[SelectOptionDict] = [
+            SelectOptionDict(label=location[SITE_NAME], value=location[SITE_ID])
+            for location in self.collector.get_location_list()
+        ]
+
+        if user_input is not None:
+            try:
+                # Create the collector object with the given parameters
+                self.collector = Collector(
+                    api_key=user_input[CONF_API_KEY],
+                    latitude=user_input[CONF_LATITUDE],
+                    longitude=user_input[CONF_LONGITUDE],
+                    epa_site_id=user_input[CONF_SITE_ID],
+                )
+
+                # Save the user input into self.data so it's retained
+                self.data = user_input
+
+                # Check if location is valid
+                await self.collector.get_location_data()
+                if not self.collector.valid_location():
+                    _LOGGER.debug("Unsupported Latitude/Longitude")
+                    errors["base"] = "bad_location"
+                else:
+                    # Populate observations
+                    await self.collector.async_update()
+
+                options = {
+                    CONF_LATITUDE: user_input[CONF_LATITUDE],
+                    CONF_LONGITUDE: user_input[CONF_LONGITUDE],
+                    CONF_API_KEY: user_input[CONF_API_KEY],
+                    CONF_SITE_ID: user_input[CONF_SITE_ID],
+                }
+
+            except Exception:
+                _LOGGER.exception("Unexpected exception")
+                errors["base"] = "unknown"
+
+            return self.async_create_entry(
+                title=TITLE,
+                data={},
+                options=options,
+            )
+
+        return self.async_show_form(
+            step_id="location",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        CONF_API_KEY, default=self.data.get(CONF_API_KEY)
+                    ): str,
                     vol.Required(
                         CONF_LATITUDE, default=self.hass.config.latitude
                     ): float,
                     vol.Required(
                         CONF_LONGITUDE, default=self.hass.config.longitude
                     ): float,
-                    vol.Optional(CONF_SITE_ID, default="Determine from Location"): str,
+                    #                    vol.Optional(CONF_SITE_ID, default="Determine from Location"): str,
+                    vol.Required(
+                        CONF_SITE_ID, default=self.collector.get_location()
+                    ): SelectSelector(
+                        SelectSelectorConfig(
+                            options=locations,
+                            mode=SelectSelectorMode.DROPDOWN,
+                            translation_key="choose_site",
+                        )
+                    ),
                 }
             ),
             errors=errors,
@@ -186,8 +284,8 @@ class EPAVicOptionFlowHandler(OptionsFlow):
             self.data = user_input
 
             # Check if location is valid
-            await self.collector.get_locations_data()
-            if not self.collector.valid_location:
+            await self.collector.get_location_data()
+            if not self.collector.valid_location():
                 _LOGGER.debug("Unsupported Latitude/Longitude")
                 errors["base"] = "bad_location"
             else:

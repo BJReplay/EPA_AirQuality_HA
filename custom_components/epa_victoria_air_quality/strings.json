@@ -3,11 +3,34 @@
         "step": {
             "user": {
               "title": "[%key:common::config_flow::title%]",
+              "description": "[%key:common::config_flow::description%]",
                 "data": {
                     "api_key": "[%key:common::config_flow::data::api_key%]",
+                    "latitude": "[%key:common::config_flow::data::latitude%]",
+                    "longitude": "[%key:common::config_flow::data::longitude%]",
                     "site_id": "[%key:common::config_flow::data::site_id%]"
                 }
             }
         }
+    },
+    "options": {
+        "step": {
+            "init": {
+              "title": "[%key:common::config_flow::title%]",
+              "description": "[%key:common::config_flow::description%]",
+                "data": {
+                    "api_key": "[%key:common::config_flow::data::api_key%]",
+                    "latitude": "[%key:common::config_flow::data::latitude%]",
+                    "longitude": "[%key:common::config_flow::data::longitude%]",
+                    "site_id": "[%key:common::config_flow::data::site_id%]"
+                }
+            }
+        }
+    },
+    "error": {
+      "bad_location": "[%key:common::config_flow::error::bad_location%]",
+      "bad_api": "[%key:common::config_flow::error::bad_api%]",
+      "cannot_connect": "[%key:common::config_flow::error::cannot_connect%]",
+      "unknown": "[%key:common::config_flow::error::unknown%]"
     }
 }

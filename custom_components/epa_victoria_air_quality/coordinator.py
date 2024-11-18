@@ -32,6 +32,7 @@ class EPADataUpdateCoordinator(DataUpdateCoordinator):
             logger=_LOGGER,
             name=DOMAIN,
             update_method=self.collector.async_update,
+            setup_method=self.collector.async_setup,
             update_interval=DEFAULT_SCAN_INTERVAL,
             request_refresh_debouncer=debounce.Debouncer(
                 hass, _LOGGER, cooldown=DEBOUNCE_TIME, immediate=True

@@ -1,0 +1,44 @@
+{
+    "config": {
+        "error": {
+            "bad_api": "Unable to retrieve Location List from EPA - probably bad API Key",
+            "bad_location": "Unsupported Latitude / Longitude",
+            "cannot_connect": "Cannot connect",
+            "unknown": "Unknown error"
+        },
+        "step": {
+            "user": {
+                "title": "Set up EPA (Victoria) Air Monitoring",
+                "description": "You need to sign up for an EPA Developer account as described in the readme and obtain an API Key.\n\nLatitude and longitude will be used to find the nearest EPA air quality monitoring station to obtain air quality data for your location. The default values come from your homeassistant \"Home\" zone (See Settings/Areas & Zones/Zones).\n\nSite ID will be determined based on Latitude and Longitude, or can be supplied if you know the Site ID you want to monitor.",
+                "data": {
+                    "api_key": "API Key",
+                    "latitude": "Latitude",
+                    "longitude": "Longitude",
+                    "site_id": "EPA Site ID",
+                    "choose_site": "Choose EPA Site"
+                }
+            }
+        }
+    },
+    "options": {
+        "error": {
+            "bad_location": "Unsupported Lat/Lon",
+            "cannot_connect": "Cannot connect",
+            "unknown": "Unknown error"
+        },
+        "step": {
+            "init": {
+                "title": "Configure EPA (Victoria) Air Monitoring",
+                "description": "Change the API Key if required, latitude and longitude used to find the nearest weather station, or Site ID.",
+                "data": {
+                    "api_key": "API Key",
+                    "latitude": "Latitude",
+                    "longitude": "Longitude",
+                    "site_id": "EPA Site ID",
+                    "choose_site": "Choose EPA Site"
+                }
+
+            }
+        }
+    }
+}
