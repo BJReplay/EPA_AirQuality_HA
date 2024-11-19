@@ -7,8 +7,9 @@ import traceback
 
 import aiohttp
 import aqi
+from geopy import distance
 
-from homeassistant.const import CONF_LATITUDE, CONF_LONGITUDE
+from homeassistant.helpers.selector import SelectOptionDict
 from homeassistant.util import Throttle
 
 from .const import (
@@ -20,6 +21,7 @@ from .const import (
     AVERAGE_VALUE,
     CONFIDENCE,
     COORDINATES,
+    DISTANCE,
     GEOMETRY,
     HEALTH_ADVICE,
     HEALTH_PARAMETER,
@@ -64,7 +66,7 @@ class Collector:
     ) -> None:
         """Init collector."""
         self.location_data: dict = {}
-        self.locations_list: list = []
+        self.locations_list: list[SelectOptionDict] = []
         self.observation_data: dict = {}
         self.latitude: float = latitude
         self.longitude: float = longitude
@@ -126,7 +128,7 @@ class Collector:
                 response = await session.get(url)
 
                 if response is not None and response.status == 200:
-                    self.locations_list = []
+                    temp_loc_list = []
                     locations_list = await response.json()
                     try:
                         records: dict = {}
@@ -154,15 +156,26 @@ class Collector:
                                         ):  # If site has a Health Parameter
                                             latitude = record[GEOMETRY][COORDINATES][0]
                                             longitude = record[GEOMETRY][COORDINATES][1]
-                                            self.locations_list.append(
+                                            temp_loc_list.append(
                                                 {
                                                     SITE_ID: site_id,
                                                     SITE_NAME: site_name,
-                                                    CONF_LATITUDE: latitude,
-                                                    CONF_LONGITUDE: longitude,
+                                                    DISTANCE: distance.geodesic(
+                                                        (latitude, longitude),
+                                                        (self.latitude, self.longitude),
+                                                    ).meters,
                                                 }
                                             )
-                        _LOGGER.debug("EPA Site List Loaded: %s", self.site_id)
+                        sorted_locs = sorted(
+                            temp_loc_list, key=lambda itm: itm.get(DISTANCE)
+                        )
+                        self.locations_list: list[SelectOptionDict] = [
+                            SelectOptionDict(
+                                label=location[SITE_NAME], value=location[SITE_ID]
+                            )
+                            for location in sorted_locs
+                        ]
+                        _LOGGER.debug("EPA Site List Loaded")
                         self.sites_found = True
                     except KeyError:
                         _LOGGER.debug(
@@ -207,7 +220,7 @@ class Collector:
             str: EPA Site Location GUID
 
         """
-        if self.site_found:
+        if self.sites_found:
             return self.locations_list
         return []
 

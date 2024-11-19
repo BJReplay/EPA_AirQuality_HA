@@ -82,7 +82,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: EPAConfigEntry) -> bool:
     hass.config_entries.async_update_entry(entry, options=opt)
 
     try:
-        await collector.async_setup()
         await collector.async_update()
     except ClientConnectorError as ex:
         raise ConfigEntryNotReady from ex
