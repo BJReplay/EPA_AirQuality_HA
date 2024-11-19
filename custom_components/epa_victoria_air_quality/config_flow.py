@@ -40,18 +40,18 @@ class EPAVicConfigFlow(ConfigFlow, domain=DOMAIN):
     @staticmethod
     @callback
     def async_get_options_flow(
-        entry: ConfigEntry,
+        config_entry: ConfigEntry,
     ) -> EPAVicOptionFlowHandler:
         """Get the options flow for this handler.
 
         Arguments:
-            entry (ConfigEntry): The integration entry instance, contains the configuration.
+            config_entry (ConfigEntry): The integration entry instance, contains the configuration.
 
         Returns:
             EPAVicOptionFlowHandler: The config flow handler instance.
 
         """
-        return EPAVicOptionFlowHandler()
+        return EPAVicOptionFlowHandler(config_entry)
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -200,6 +200,10 @@ class EPAVicConfigFlow(ConfigFlow, domain=DOMAIN):
 
 class EPAVicOptionFlowHandler(OptionsFlow):
     """Handle options."""
+
+    def __init__(self, config_entry: ConfigEntry) -> None:
+        """Initialize options flow."""
+        self.options = dict(config_entry.options)
 
     async def async_step_init(self, user_input: dict | None = None) -> Any:
         """Initialise main dialogue step.
