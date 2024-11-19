@@ -4,7 +4,11 @@
 
 A Home Assistant custom component for reading air quality data from the EPA Victoria (Australia) Environment Monitoring API
 
-Example of Melbourne CBD Sensor when it goes offline - integration switches to 24 Hour sensor, and shows the Data source as 24HR_AV
+If you drop the images into your www directory (or create it, if required), the `sample-card.yaml` will create the sample below.
+
+[<img src="https://github.com/BJReplay/EPA_AirQuality_HA/blob/main/.github/SCREENSHOTS/sample_card.png">](https://github.com/BJReplay/EPA_AirQuality_HA/blob/main/.github/SCREENSHOTS/sample_card.png)
+
+Sometimes sensors go off line: example of Melbourne CBD Sensor when it goes offline - integration switches to 24 Hour sensor, and shows the Data source as 24HR_AV
 
 [<img src="https://github.com/BJReplay/EPA_AirQuality_HA/blob/main/.github/SCREENSHOTS/1HR_AV_Unavailable.png">](https://github.com/BJReplay/EPA_AirQuality_HA/blob/main/.github/SCREENSHOTS/1HR_AV_Unavailable.png)
 
