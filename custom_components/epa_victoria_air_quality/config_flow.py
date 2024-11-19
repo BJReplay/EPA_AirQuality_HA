@@ -202,7 +202,8 @@ class EPAVicOptionFlowHandler(OptionsFlow):
 
     def __init__(self, config_entry: ConfigEntry) -> None:
         """Initialize options flow."""
-        self.options = dict(config_entry.options)
+        self._entry: ConfigEntry = config_entry
+        self._options = dict(config_entry.options)
 
     async def async_step_init(self, user_input: dict | None = None) -> Any:
         """Initialise main dialogue step.
@@ -216,11 +217,11 @@ class EPAVicOptionFlowHandler(OptionsFlow):
         """
 
         errors = {}
-        api_key = self.options.get(CONF_API_KEY)
-        latitude = self.options.get(CONF_LATITUDE)
-        longitude = self.options.get(CONF_LONGITUDE)
+        api_key = self._options.get(CONF_API_KEY)
+        latitude = self._options.get(CONF_LATITUDE)
+        longitude = self._options.get(CONF_LONGITUDE)
         try:
-            site_id = self.options.get(CONF_SITE_ID)
+            site_id = self._options.get(CONF_SITE_ID)
         except KeyError:
             site_id = "Determine from Location"
 
@@ -235,7 +236,7 @@ class EPAVicOptionFlowHandler(OptionsFlow):
         epa_locs: list[SelectOptionDict] = collector.get_location_list()
 
         if user_input is not None:
-            all_config_data = {**self.options}
+            all_config_data = {**self._options}
 
             site_id = user_input[CONF_SITE_ID]
             all_config_data[CONF_SITE_ID] = site_id
@@ -243,16 +244,10 @@ class EPAVicOptionFlowHandler(OptionsFlow):
             api_key = user_input[CONF_API_KEY].replace(" ", "")
             all_config_data[CONF_API_KEY] = api_key
 
-            self.hass.config_entries.async_update_entry(
-                self.config_entry,
-                title=TITLE,
-                options=all_config_data,
-            )
-
             self.data = user_input
 
             self.hass.config_entries.async_update_entry(
-                self.config_entry,
+                self._entry,
                 title=TITLE,
                 options=all_config_data,
             )
