@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from copy import deepcopy
 import logging
 from typing import Any
 
@@ -216,13 +215,12 @@ class EPAVicOptionFlowHandler(OptionsFlow):
 
         """
 
-        _options = deepcopy(dict(self.config_entry.options))
         errors = {}
-        api_key = _options.get(CONF_API_KEY)
-        latitude = _options.get(CONF_LATITUDE)
-        longitude = _options.get(CONF_LONGITUDE)
+        api_key = self.options.get(CONF_API_KEY)
+        latitude = self.options.get(CONF_LATITUDE)
+        longitude = self.options.get(CONF_LONGITUDE)
         try:
-            site_id = _options.get(CONF_SITE_ID)
+            site_id = self.options.get(CONF_SITE_ID)
         except KeyError:
             site_id = "Determine from Location"
 
@@ -237,7 +235,7 @@ class EPAVicOptionFlowHandler(OptionsFlow):
         epa_locs: list[SelectOptionDict] = collector.get_location_list()
 
         if user_input is not None:
-            all_config_data = {**_options}
+            all_config_data = {**self.options}
 
             site_id = user_input[CONF_SITE_ID]
             all_config_data[CONF_SITE_ID] = site_id
