@@ -173,7 +173,7 @@ class EPAQualitySensor(CoordinatorEntity[EPADataUpdateCoordinator], SensorEntity
         entity_description: SensorEntityDescription,
         entry: EPAConfigEntry,
     ) -> None:
-        """Initialse Sensor."""
+        """Initialise Sensor."""
 
         data = entry.runtime_data
         coordinator: EPADataUpdateCoordinator = data.coordinator
