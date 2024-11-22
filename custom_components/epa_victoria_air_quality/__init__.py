@@ -19,7 +19,7 @@ from .coordinator import EPADataUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS = [Platform.SENSOR, Platform.SELECT]
+PLATFORMS = [Platform.SENSOR]
 
 type EPAConfigEntry = ConfigEntry[EPAData]
 
