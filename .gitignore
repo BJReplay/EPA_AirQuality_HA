@@ -7,6 +7,7 @@
 .storage/**
 custom_components/hacs/**
 custom_components/solcast_solar/**
+custom_components/sew_usage/**
 custom_components/polestar_api/**
 custom_components/pyscript/**
 custom_components/ocpp/**
