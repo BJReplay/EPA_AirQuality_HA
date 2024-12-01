@@ -24,7 +24,6 @@ Beta versions may also have addressed issues so look at those.
 If all else fails, then open an issue and our community will try to
 help: https://github.com/BJReplay/EPA_AirQuality_HA/issues"""
 MANUFACTURER = "BJReplay"
-SERVICE_UPDATE = "update_quality"
 TITLE = "EPA Air Quality"
 ATTR_CONFIDENCE = "confidence"
 ATTR_CONFIDENCE_24H = "confidence_24h"
