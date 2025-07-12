@@ -43,6 +43,6 @@ Thanks to @autoSteve who provided much of the python knowledge and assistance ov
 
 I am considering whether future releases will support multiple installs so you can monitor multiple locations: currently the integration doesn't prevent multiple installs, but errors out on second and subsequent installs.
 
-Current release v0.4.3 allows selecting Air Quality monitoring station from a list sorted by distance from your Home Assistant location.
+Current release v0.4.5 allows selecting Air Quality monitoring station from a list sorted by distance from your Home Assistant location.
 
 If you change the location, subsequent list updates might be sorted based on distance from the currently selected location 🤣

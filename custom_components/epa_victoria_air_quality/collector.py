@@ -373,48 +373,52 @@ class Collector:
     async def extract_observation_data(self):
         """Extract Observation Data to individual fields."""
         parameters: dict = {}
+        parameter: dict = {}
         time_series_readings: dict = {}
         time_series_reading: dict = {}
         self.observation_data = {}
         if self.observations_data.get(PARAMETERS) is not None:
-            parameters = self.observations_data[PARAMETERS][0]
-            if parameters.get(TIME_SERIES_READINGS) is not None:
-                time_series_readings = parameters[TIME_SERIES_READINGS]
-                for time_series_reading in time_series_readings:
-                    reading: dict = time_series_reading[READINGS][0]
-                    match time_series_reading[TIME_SERIES_NAME]:
-                        case "1HR_AV":
-                            self.confidence = reading[CONFIDENCE]
-                            self.total_sample = reading[TOTAL_SAMPLE]
-                            if self.confidence > 0 and self.total_sample > 0:
-                                self.aqi_pm25 = reading[HEALTH_ADVICE]
-                                self.pm25 = reading[AVERAGE_VALUE]
-                                self.aqi = aqi.to_aqi([(aqi.POLLUTANT_PM25, self.pm25)])
-                                self.data_source_1h = time_series_reading[
-                                    TIME_SERIES_NAME
-                                ]
-                            self.until = reading[UNTIL]
-                        case "24HR_AV":
-                            self.confidence_24h = reading[CONFIDENCE]
-                            self.total_sample_24h = reading[TOTAL_SAMPLE]
-                            self.aqi_pm25_24h = reading[HEALTH_ADVICE]
-                            self.pm25_24h = reading[AVERAGE_VALUE]
-                            self.aqi_24h = aqi.to_aqi(
-                                [(aqi.POLLUTANT_PM25, self.pm25_24h)]
-                            )
-                            if (
-                                self.confidence == 0
-                                and self.total_sample == 0
-                                and self.confidence_24h > 0
-                                and self.total_sample_24h > 0
-                            ):
-                                # Update 1 Hour readings
-                                self.aqi_pm25 = self.aqi_pm25_24h
-                                self.pm25 = self.pm25_24h
-                                self.aqi = self.aqi_24h
-                                self.data_source_1h = time_series_reading[
-                                    TIME_SERIES_NAME
-                                ]
+            parameters = self.observations_data[PARAMETERS]
+            for parameter in parameters:
+                if parameter.get(TIME_SERIES_READINGS) is not None:
+                    time_series_readings = parameter[TIME_SERIES_READINGS]
+                    for time_series_reading in time_series_readings:
+                        reading: dict = time_series_reading[READINGS][0]
+                        match time_series_reading[TIME_SERIES_NAME]:
+                            case "1HR_AV":
+                                self.confidence = reading[CONFIDENCE]
+                                self.total_sample = reading[TOTAL_SAMPLE]
+                                if self.confidence > 0 and self.total_sample > 0:
+                                    self.aqi_pm25 = reading[HEALTH_ADVICE]
+                                    self.pm25 = reading[AVERAGE_VALUE]
+                                    self.aqi = aqi.to_aqi(
+                                        [(aqi.POLLUTANT_PM25, self.pm25)]
+                                    )
+                                    self.data_source_1h = time_series_reading[
+                                        TIME_SERIES_NAME
+                                    ]
+                                self.until = reading[UNTIL]
+                            case "24HR_AV":
+                                self.confidence_24h = reading[CONFIDENCE]
+                                self.total_sample_24h = reading[TOTAL_SAMPLE]
+                                self.aqi_pm25_24h = reading[HEALTH_ADVICE]
+                                self.pm25_24h = reading[AVERAGE_VALUE]
+                                self.aqi_24h = aqi.to_aqi(
+                                    [(aqi.POLLUTANT_PM25, self.pm25_24h)]
+                                )
+                                if (
+                                    self.confidence == 0
+                                    and self.total_sample == 0
+                                    and self.confidence_24h > 0
+                                    and self.total_sample_24h > 0
+                                ):
+                                    # Update 1 Hour readings
+                                    self.aqi_pm25 = self.aqi_pm25_24h
+                                    self.pm25 = self.pm25_24h
+                                    self.aqi = self.aqi_24h
+                                    self.data_source_1h = time_series_reading[
+                                        TIME_SERIES_NAME
+                                    ]
 
             self.last_updated = dt.now()
             self.observation_data = {
