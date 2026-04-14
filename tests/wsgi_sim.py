@@ -401,7 +401,7 @@ if __name__ == "__main__":
     try:
         if EPA_DOMAIN not in Path("/etc/hosts").read_text():
             _LOGGER.warning(
-                "/etc/hosts does not redirect %s to localhost. Run with --setup-hosts first, or manually add: %s",
+                "/etc/hosts does not redirect %s to localhost. Run with --setup-hosts using sudo first, or manually add: %s",
                 EPA_DOMAIN,
                 HOSTS_ENTRY,
             )
