@@ -49,7 +49,17 @@
                     "site_id": "EPA Site ID",
                     "choose_site": "Choose EPA Site"
                 }
-
+            },
+            "location": {
+                "title": "Configure EPA (Victoria) Air Monitoring",
+                "description": "Latitude and longitude will be used to find the nearest EPA air quality monitoring station to obtain air quality data for your location.\n\nThe default values come from your homeassistant \"Home\" zone (See Settings/Areas & Zones/Zones).",
+                "data": {
+                    "api_key": "API Key",
+                    "latitude": "Latitude",
+                    "longitude": "Longitude",
+                    "site_id": "EPA Site ID",
+                    "choose_site": "Choose EPA Site"
+                }
             }
         }
     }

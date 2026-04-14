@@ -63,4 +63,4 @@ SITE_TYPE_SENSOR: Final = "Sensor"
 SITE_TYPE_STANDARD: Final = "Standard"
 SITE_TYPE_CAMERA: Final = "Camera"
 SITE_HEALTH_ADVICES: Final = "siteHealthAdvices"
-SCAN_INTERVAL: Final = 15
+SCAN_INTERVAL = 15
