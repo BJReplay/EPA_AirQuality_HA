@@ -26,6 +26,7 @@
             "bad_location": "[%key:common::config_flow::error::bad_location%]",
             "bad_api": "[%key:common::config_flow::error::bad_api%]",
             "cannot_connect": "[%key:common::config_flow::error::cannot_connect%]",
+            "key_changed": "[%key:common::config_flow::error::key_changed%]",
             "unknown": "[%key:common::config_flow::error::unknown%]"
         }
     },
@@ -56,6 +57,7 @@
             "bad_location": "[%key:common::config_flow::error::bad_location%]",
             "bad_api": "[%key:common::config_flow::error::bad_api%]",
             "cannot_connect": "[%key:common::config_flow::error::cannot_connect%]",
+            "key_changed": "[%key:common::config_flow::error::key_changed%]",
             "unknown": "[%key:common::config_flow::error::unknown%]"
         }
     }

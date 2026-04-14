@@ -4,6 +4,7 @@
             "bad_api": "Unable to retrieve Location List from EPA - probably bad API Key",
             "bad_location": "Unsupported Latitude / Longitude",
             "cannot_connect": "Cannot connect",
+            "key_changed": "API key has changed after validation",
             "unknown": "Unknown error"
         },
         "step": {
@@ -36,6 +37,7 @@
             "bad_location": "Unsupported Lat/Lon",
             "bad_api": "Unable to retrieve Location List from EPA - probably bad API Key",
             "cannot_connect": "Cannot connect",
+            "key_changed": "API Key has changed after validation",
             "unknown": "Unknown error"
         },
         "step": {

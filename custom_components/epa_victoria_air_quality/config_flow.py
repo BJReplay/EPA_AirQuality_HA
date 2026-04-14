@@ -14,7 +14,7 @@ from homeassistant.config_entries import (
     ConfigFlowResult,
     OptionsFlow,
 )
-from homeassistant.const import CONF_API_KEY, CONF_LATITUDE, CONF_LONGITUDE
+from homeassistant.const import CONF_API_KEY
 from homeassistant.core import callback
 from homeassistant.helpers.selector import (
     SelectOptionDict,
@@ -128,6 +128,7 @@ class EPAVicConfigFlow(ConfigFlow, domain=DOMAIN):
                 errors["base"] = "bad_api"
 
         epa_locs: list[SelectOptionDict] = self.collector.get_location_list()
+        present_key = self.data.get(CONF_API_KEY)
 
         if user_input is not None:
             try:
@@ -141,20 +142,22 @@ class EPAVicConfigFlow(ConfigFlow, domain=DOMAIN):
 
                 # Save the user input into self.data so it's retained
                 self.data = user_input
+                if self.data.get(CONF_API_KEY) != present_key:
+                    errors["base"] = "key_changed"
+                else:
+                    # Populate observations
+                    await self.collector.async_update()
 
-                # Populate observations
-                await self.collector.async_update()
+                    options = {
+                        CONF_API_KEY: user_input[CONF_API_KEY],
+                        CONF_SITE_ID: user_input[CONF_SITE_ID],
+                    }
 
-                options = {
-                    CONF_API_KEY: user_input[CONF_API_KEY],
-                    CONF_SITE_ID: user_input[CONF_SITE_ID],
-                }
-
-                return self.async_create_entry(
-                    title=TITLE,
-                    data={},
-                    options=options,
-                )
+                    return self.async_create_entry(
+                        title=TITLE,
+                        data={},
+                        options=options,
+                    )
 
             except Exception:
                 _LOGGER.exception("Unexpected exception")
@@ -242,55 +245,6 @@ class EPAVicOptionFlowHandler(OptionsFlow):
             errors=errors,
         )
 
-    '''
-    async def async_step_location(self, user_input: dict | None = None) -> Any:
-        """Handle site selection after API key validation.
-
-        Arguments:
-            user_input (dict, optional): The input provided by the user. Defaults to None.
-
-        Returns:
-            Any: Either an error, or the configuration dialogue results.
-
-        """
-        errors: dict[str, str] = {}
-
-        if self._collector is None:
-            return await self.async_step_init()
-
-        if user_input is not None:
-            site_id = user_input[CONF_SITE_ID]
-
-            all_config_data = {**self._options}
-            all_config_data[CONF_API_KEY] = self._validated_api_key
-            all_config_data[CONF_SITE_ID] = site_id
-
-            return self.async_create_entry(title=TITLE, data=all_config_data)
-
-        try:
-            site_id = self._options[CONF_SITE_ID]
-        except KeyError:
-            site_id = self._collector.get_location()
-
-        epa_locs: list[SelectOptionDict] = self._collector.get_location_list()
-
-        return self.async_show_form(
-            step_id="location",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(CONF_SITE_ID, default=site_id): SelectSelector(
-                        SelectSelectorConfig(
-                            options=epa_locs,
-                            mode=SelectSelectorMode.DROPDOWN,
-                            translation_key="choose_site",
-                        )
-                    ),
-                }
-            ),
-            errors=errors,
-        )
-    '''
-
     async def async_step_location(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Handle a flow initiated by the user.
 
@@ -303,25 +257,35 @@ class EPAVicOptionFlowHandler(OptionsFlow):
         """
         errors = {}
 
+        if self._collector is None:
+            _LOGGER.exception("Unexpected exception")
+            errors["base"] = "unknown"
+            return self.async_show_form(
+                step_id="location",
+                data_schema=None,
+                errors=errors,
+            )
         site_id = self._options.get(CONF_SITE_ID, self._collector.get_location())
         epa_locs: list[SelectOptionDict] = self._collector.get_location_list()
+        present_key = self.data.get(CONF_API_KEY)
 
         if user_input is not None:
             try:
                 # Save the user input into self.data so it's retained
                 self.data = user_input
-
-                # Populate observations
-                if self._collector is not None:
+                if self.data.get(CONF_API_KEY) != present_key:
+                    errors["base"] = "key_changed"
+                else:
+                    # Populate observations
                     await self._collector.async_update()
 
-                site_id = user_input[CONF_SITE_ID]
+                    site_id = user_input[CONF_SITE_ID]
 
-                all_config_data = {**self._options}
-                all_config_data[CONF_API_KEY] = self._validated_api_key
-                all_config_data[CONF_SITE_ID] = site_id
+                    all_config_data = {**self._options}
+                    all_config_data[CONF_API_KEY] = self._validated_api_key
+                    all_config_data[CONF_SITE_ID] = site_id
 
-                return self.async_create_entry(title=TITLE, data=all_config_data)
+                    return self.async_create_entry(title=TITLE, data=all_config_data)
 
             except Exception:
                 _LOGGER.exception("Unexpected exception")
