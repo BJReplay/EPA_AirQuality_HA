@@ -8,10 +8,14 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant import config_entries
-from homeassistant.config_entries import ConfigEntry, ConfigFlow, OptionsFlow
+from homeassistant.config_entries import (
+    ConfigEntry,
+    ConfigFlow,
+    ConfigFlowResult,
+    OptionsFlow,
+)
 from homeassistant.const import CONF_API_KEY, CONF_LATITUDE, CONF_LONGITUDE
 from homeassistant.core import callback
-from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers.selector import (
     SelectOptionDict,
     SelectSelector,
@@ -32,7 +36,7 @@ class EPAVicConfigFlow(ConfigFlow, domain=DOMAIN):
     def __init__(self) -> None:
         """Initialise the config flow."""
         self.data = {}
-        self.collector: Collector = None
+        self.collector: Collector | None = None
 
     VERSION = 2
 
@@ -52,16 +56,14 @@ class EPAVicConfigFlow(ConfigFlow, domain=DOMAIN):
         """
         return EPAVicOptionFlowHandler(config_entry)
 
-    async def async_step_user(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Handle a flow initiated by the user.
 
         Arguments:
             user_input (dict[str, Any] | None, optional): The config submitted by a user. Defaults to None.
 
         Returns:
-            FlowResult: The form to show.
+            ConfigFlowResult: The next step or form to show.
 
         """
 
@@ -85,25 +87,11 @@ class EPAVicConfigFlow(ConfigFlow, domain=DOMAIN):
                     _LOGGER.debug("Unable to retrieve location list from EPA")
                     errors["base"] = "bad_api"
                 else:
-                    # Get the API Key
-                    options = {
-                        CONF_API_KEY: user_input[CONF_API_KEY],
-                    }
                     return await self.async_step_location()
-
-                options = {
-                    CONF_API_KEY: user_input[CONF_API_KEY],
-                }
 
             except Exception:
                 _LOGGER.exception("Unexpected exception")
                 errors["base"] = "unknown"
-
-            return self.async_create_entry(
-                title=TITLE,
-                data={},
-                options=options,
-            )
 
         return self.async_show_form(
             step_id="user",
@@ -118,19 +106,20 @@ class EPAVicConfigFlow(ConfigFlow, domain=DOMAIN):
             },
         )
 
-    async def async_step_location(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    async def async_step_location(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Handle a flow initiated by the user.
 
         Arguments:
             user_input (dict[str, Any] | None, optional): The config submitted by a user. Defaults to None.
 
         Returns:
-            FlowResult: The form to show.
+            ConfigFlowResult: The form or created entry.
 
         """
         errors = {}
+
+        if self.collector is None:
+            return await self.async_step_user()
 
         if not self.collector.valid_location_list():
             await self.collector.async_setup()
@@ -161,26 +150,22 @@ class EPAVicConfigFlow(ConfigFlow, domain=DOMAIN):
                     CONF_SITE_ID: user_input[CONF_SITE_ID],
                 }
 
+                return self.async_create_entry(
+                    title=TITLE,
+                    data={},
+                    options=options,
+                )
+
             except Exception:
                 _LOGGER.exception("Unexpected exception")
                 errors["base"] = "unknown"
-
-            return self.async_create_entry(
-                title=TITLE,
-                data={},
-                options=options,
-            )
 
         return self.async_show_form(
             step_id="location",
             data_schema=vol.Schema(
                 {
-                    vol.Required(
-                        CONF_API_KEY, default=self.data.get(CONF_API_KEY)
-                    ): str,
-                    vol.Required(
-                        CONF_SITE_ID, default=self.collector.get_location()
-                    ): SelectSelector(
+                    vol.Required(CONF_API_KEY, default=self.data.get(CONF_API_KEY)): str,
+                    vol.Required(CONF_SITE_ID, default=self.collector.get_location()): SelectSelector(
                         SelectSelectorConfig(
                             options=epa_locs,
                             mode=SelectSelectorMode.DROPDOWN,
@@ -204,6 +189,7 @@ class EPAVicOptionFlowHandler(OptionsFlow):
         """Initialize options flow."""
         self._entry: ConfigEntry = config_entry
         self._options = dict(config_entry.options)
+        self.data = {}
 
     async def async_step_init(self, user_input: dict | None = None) -> Any:
         """Initialise main dialogue step.
@@ -217,17 +203,15 @@ class EPAVicOptionFlowHandler(OptionsFlow):
         """
 
         errors = {}
-        api_key = self._options.get(CONF_API_KEY)
-        latitude = self._options.get(CONF_LATITUDE)
-        longitude = self._options.get(CONF_LONGITUDE)
+        api_key = self._options.get(CONF_API_KEY, "")
+        latitude = self._options.get(CONF_LATITUDE, 0)
+        longitude = self._options.get(CONF_LONGITUDE, 0)
         try:
-            site_id = self._options.get(CONF_SITE_ID)
+            site_id = self._options[CONF_SITE_ID]
         except KeyError:
             site_id = "Determine from Location"
 
-        collector: Collector = Collector(
-            api_key=api_key, latitude=latitude, longitude=longitude
-        )
+        collector: Collector = Collector(api_key=api_key, latitude=latitude, longitude=longitude)
         await collector.async_setup()
         if not collector.valid_location_list():
             _LOGGER.debug("Unable to retrieve location list from EPA")
@@ -253,7 +237,7 @@ class EPAVicOptionFlowHandler(OptionsFlow):
             )
             await collector.async_update()
 
-            return self.async_create_entry(title=TITLE, data=None)
+            return self.async_create_entry(title=TITLE, data={})
 
         return self.async_show_form(
             step_id="init",

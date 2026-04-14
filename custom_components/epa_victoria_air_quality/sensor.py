@@ -132,8 +132,8 @@ async def async_setup_entry(
     coordinator: EPADataUpdateCoordinator = data.coordinator
     entities = []
 
-    for sensor_types in SENSORS:
-        sen = EPAQualitySensor(coordinator, SENSORS[sensor_types], entry)
+    for description in SENSORS.values():
+        sen = EPAQualitySensor(coordinator, description, entry)
         entities.append(sen)
 
     async_add_entities(entities, update_before_add=False)
@@ -175,17 +175,15 @@ class EPAQualitySensor(CoordinatorEntity[EPADataUpdateCoordinator], SensorEntity
     ) -> None:
         """Initialise Sensor."""
 
-        data = entry.runtime_data
-        coordinator: EPADataUpdateCoordinator = data.coordinator
         collector: Collector = coordinator.collector
         sensor_name = entity_description.key
         super().__init__(coordinator)
 
-        self.entity_description: str = entity_description
+        self.entity_description: SensorEntityDescription = entity_description
         self.sensor_name: str = sensor_name
         self._coordinator: EPADataUpdateCoordinator = coordinator
         self._collector: Collector = collector
-        self._update_policy: dict = get_sensor_update_policy()
+        self._update_policy: SensorUpdatePolicy = get_sensor_update_policy()
         self._attr_unique_id: str = f"{entity_description.key}"
         self._attributes: dict = {}
         self._attr_extra_state_attributes: dict = {}
@@ -229,9 +227,7 @@ class EPAQualitySensor(CoordinatorEntity[EPADataUpdateCoordinator], SensorEntity
         try:
             self._sensor_data = self._collector.get_sensor(self.entity_description.key)
         except KeyError as e:
-            _LOGGER.error(
-                "Unable to get sensor value: %s: %s", e, traceback.format_exc()
-            )
+            _LOGGER.error("Unable to get sensor value: %s: %s", e, traceback.format_exc())
             self._sensor_data = None
 
         if self._sensor_data is None:
@@ -313,11 +309,12 @@ class EPAQualitySensor(CoordinatorEntity[EPADataUpdateCoordinator], SensorEntity
                 UNTIL: self._collector.until,
             }
 
-        return self.native_value
+        value = self.native_value
+        if isinstance(value, dt):
+            return value.isoformat()
+        return value
 
     async def async_added_to_hass(self):
         """Call when an entity is added to hass."""
         await super().async_added_to_hass()
-        self.async_on_remove(
-            self._coordinator.async_add_listener(self._handle_coordinator_update)
-        )
+        self.async_on_remove(self._coordinator.async_add_listener(self._handle_coordinator_update))

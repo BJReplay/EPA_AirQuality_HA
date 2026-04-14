@@ -82,6 +82,7 @@ class Collector:
         self.confidence: float = 0
         self.confidence_24h: float = 0
         self.data_source_1h: str = ""
+        self.observations_data: dict = {}
         self.pm25: float = 0
         self.pm25_24h: float = 0
         self.total_sample: float = 0
@@ -104,7 +105,7 @@ class Collector:
         async with aiohttp.ClientSession(headers=self.headers) as session:
             if self.latitude != 0 and self.longitude != 0:
                 url = f"{URL_BASE}{URL_FIND_SITE}[{self.latitude},{self.longitude}]"
-                response = await session.get(url)
+                response = await session.get(url, ssl=False)
 
                 if response is not None and response.status == 200:
                     self.location_data = await response.json()
@@ -125,7 +126,7 @@ class Collector:
         async with aiohttp.ClientSession(headers=self.headers) as session:
             if self.latitude != 0 and self.longitude != 0:
                 url = f"{URL_BASE}{URL_LIST_SITE}"
-                response = await session.get(url)
+                response = await session.get(url, ssl=False)
 
                 if response is not None and response.status == 200:
                     temp_loc_list = []
@@ -145,15 +146,10 @@ class Collector:
                                     SITE_TYPE_STANDARD,
                                 ):  # If it isn't a camera
                                     if (
-                                        record.get(SITE_HEALTH_ADVICES)[0] is not None
+                                        record.get(SITE_HEALTH_ADVICES) is not None and record.get(SITE_HEALTH_ADVICES)[0] is not None  # pyright: ignore[reportOptionalSubscript]
                                     ):  # Get Health Site Advices
-                                        siteHealthAdvices = record[SITE_HEALTH_ADVICES][
-                                            0
-                                        ]
-                                        if (
-                                            siteHealthAdvices.get(HEALTH_PARAMETER)
-                                            is not None
-                                        ):  # If site has a Health Parameter
+                                        siteHealthAdvices = record[SITE_HEALTH_ADVICES][0]
+                                        if siteHealthAdvices.get(HEALTH_PARAMETER) is not None:  # If site has a Health Parameter
                                             latitude = record[GEOMETRY][COORDINATES][0]
                                             longitude = record[GEOMETRY][COORDINATES][1]
                                             temp_loc_list.append(
@@ -166,14 +162,9 @@ class Collector:
                                                     ).meters,
                                                 }
                                             )
-                        sorted_locs = sorted(
-                            temp_loc_list, key=lambda itm: itm.get(DISTANCE)
-                        )
+                        sorted_locs = sorted(temp_loc_list, key=lambda itm: itm.get(DISTANCE))
                         self.locations_list: list[SelectOptionDict] = [
-                            SelectOptionDict(
-                                label=location[SITE_NAME], value=location[SITE_ID]
-                            )
-                            for location in sorted_locs
+                            SelectOptionDict(label=location[SITE_NAME], value=location[SITE_ID]) for location in sorted_locs
                         ]
                         _LOGGER.debug("EPA Site List Loaded")
                         self.sites_found = True
@@ -354,7 +345,7 @@ class Collector:
         """
         if self.site_found:
             return self.until
-        return 0
+        return ""
 
     def get_sensor(self, key: str):
         """Return A sensor.
@@ -391,21 +382,15 @@ class Collector:
                                 if self.confidence > 0 and self.total_sample > 0:
                                     self.aqi_pm25 = reading[HEALTH_ADVICE]
                                     self.pm25 = reading[AVERAGE_VALUE]
-                                    self.aqi = aqi.to_aqi(
-                                        [(aqi.POLLUTANT_PM25, self.pm25)]
-                                    )
-                                    self.data_source_1h = time_series_reading[
-                                        TIME_SERIES_NAME
-                                    ]
+                                    self.aqi = aqi.to_aqi([(aqi.POLLUTANT_PM25, self.pm25)])
+                                    self.data_source_1h = time_series_reading[TIME_SERIES_NAME]
                                 self.until = reading[UNTIL]
                             case "24HR_AV":
                                 self.confidence_24h = reading[CONFIDENCE]
                                 self.total_sample_24h = reading[TOTAL_SAMPLE]
                                 self.aqi_pm25_24h = reading[HEALTH_ADVICE]
                                 self.pm25_24h = reading[AVERAGE_VALUE]
-                                self.aqi_24h = aqi.to_aqi(
-                                    [(aqi.POLLUTANT_PM25, self.pm25_24h)]
-                                )
+                                self.aqi_24h = aqi.to_aqi([(aqi.POLLUTANT_PM25, self.pm25_24h)])
                                 if (
                                     self.confidence == 0
                                     and self.total_sample == 0
@@ -416,9 +401,7 @@ class Collector:
                                     self.aqi_pm25 = self.aqi_pm25_24h
                                     self.pm25 = self.pm25_24h
                                     self.aqi = self.aqi_24h
-                                    self.data_source_1h = time_series_reading[
-                                        TIME_SERIES_NAME
-                                    ]
+                                    self.data_source_1h = time_series_reading[TIME_SERIES_NAME]
 
             self.last_updated = dt.now()
             self.observation_data = {
@@ -444,9 +427,7 @@ class Collector:
                 if self.location_data is None:
                     await self.get_location_data()
 
-                async with session.get(
-                    URL_BASE + self.get_location() + URL_PARAMETERS
-                ) as resp:
+                async with session.get(URL_BASE + self.get_location() + URL_PARAMETERS, ssl=False) as resp:
                     self.observations_data = await resp.json()
                     await self.extract_observation_data()
         except ConnectionRefusedError as e:

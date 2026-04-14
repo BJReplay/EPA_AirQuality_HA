@@ -2,7 +2,6 @@
 
 from dataclasses import dataclass
 import logging
-from typing import Any
 
 from aiohttp.client_exceptions import ClientConnectorError
 
@@ -64,15 +63,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: EPAConfigEntry) -> bool:
 
     options = entry.options
     collector: Collector = Collector(
-        api_key=options.get(CONF_API_KEY),
+        api_key=options.get(CONF_API_KEY, ""),
         version_string=ua_version,
-        epa_site_id=options.get(CONF_SITE_ID),
-        latitude=options.get(CONF_LATITUDE),
-        longitude=options.get(CONF_LONGITUDE),
+        epa_site_id=options.get(CONF_SITE_ID, ""),
+        latitude=options.get(CONF_LATITUDE, 0),
+        longitude=options.get(CONF_LONGITUDE, 0),
     )
-    coordinator: EPADataUpdateCoordinator = EPADataUpdateCoordinator(
-        hass=hass, collector=collector, version=ua_version
-    )
+    coordinator: EPADataUpdateCoordinator = EPADataUpdateCoordinator(hass=hass, collector=collector, version=ua_version)
 
     entry.runtime_data = EPAData(coordinator, entry)
 
@@ -153,9 +150,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
 
-async def async_remove_config_entry_device(
-    hass: HomeAssistant, entry: ConfigEntry, device
-) -> bool:
+async def async_remove_config_entry_device(hass: HomeAssistant, entry: ConfigEntry, device) -> bool:
     """Remove a device.
 
     Arguments:
@@ -167,7 +162,8 @@ async def async_remove_config_entry_device(
         bool: Whether the removal completed successfully.
 
     """
-    dr(hass).async_remove_device(device.id)
+    device_registry = dr.async_get(hass)
+    device_registry.async_remove_device(device.id)
     return True
 
 
@@ -176,4 +172,4 @@ class EPAData:
     """EPA options for the integration."""
 
     coordinator: EPADataUpdateCoordinator
-    other_data: dict[str, Any]
+    other_data: EPAConfigEntry
