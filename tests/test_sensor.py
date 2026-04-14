@@ -138,11 +138,11 @@ async def test_sensor_suggested_object_id(hass: HomeAssistant) -> None:
 
 @pytest.mark.asyncio
 async def test_sensor_unique_id(hass: HomeAssistant) -> None:
-    """The unique_id is composed of site_id and sensor key with no human-readable strings."""
+    """The unique_id matches the upstream format to preserve existing entity registrations."""
     sensor, _ = _make_sensor(hass)
     from homeassistant.components.epa_victoria_air_quality.sensor import SENSORS
 
-    expected = f"{TEST_SITE_ID_1}_{SENSORS[TYPE_AQI_PM25].key}"
+    expected = f"epavic_epa_api_{SENSORS[TYPE_AQI_PM25].name}"
     assert sensor.unique_id == expected
 
 

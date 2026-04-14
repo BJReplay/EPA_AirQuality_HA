@@ -36,7 +36,6 @@ from .const import (
     ATTR_ENTRY_TYPE,
     ATTR_TOTAL_SAMPLE,
     ATTRIBUTION,
-    CONF_SITE_ID,
     DOMAIN,
     MANUFACTURER,
     SCAN_INTERVAL,
@@ -184,9 +183,8 @@ class EPAQualitySensor(CoordinatorEntity[EPADataUpdateCoordinator], SensorEntity
         self._coordinator: EPADataUpdateCoordinator = coordinator
         self._collector: Collector = collector
         self._update_policy: SensorUpdatePolicy = get_sensor_update_policy()
-        site_id = entry.options.get(CONF_SITE_ID, entry.entry_id)
         self._entry: EPAConfigEntry = entry
-        self._attr_unique_id: str = f"{site_id}_{entity_description.key}"
+        self._attr_unique_id: str = f"epavic_epa_api_{entity_description.name}"
         self._attributes: dict = {}
         self._attr_extra_state_attributes: dict = {}
 
