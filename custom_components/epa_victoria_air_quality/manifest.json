@@ -1,14 +1,25 @@
 {
   "domain": "epa_victoria_air_quality",
   "name": "EPA Victoria Air Quality",
-  "after_dependencies": ["http"],
-  "codeowners": ["@BJReplay"],
+  "after_dependencies": [
+    "http"
+  ],
+  "codeowners": [
+    "@BJReplay"
+  ],
   "config_flow": true,
-  "dependencies": ["homeassistant"],
+  "dependencies": [
+    "homeassistant"
+  ],
   "documentation": "https://github.com/BJReplay/EPA_AirQuality_HA",
   "integration_type": "service",
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/BJReplay/EPA_AirQuality_HA/issues",
-  "requirements": ["aiohttp>=3.8.5", "geopy>=2.4.1",  "python-aqi>=0.6.1"],
+  "requirements": [
+    "aiohttp>=3.8.5",
+    "geopy>=2.4.1",
+    "python-aqi>=0.6.1"
+  ],
+  "single_config_entry": false,
   "version": "0.4.5"
 }

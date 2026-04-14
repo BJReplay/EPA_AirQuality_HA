@@ -123,16 +123,16 @@ def _ensure_ssl_cert() -> None:
 def setup_hosts() -> None:
     """Add /etc/hosts entry to redirect the EPA API domain to localhost."""
     hosts_path = Path("/etc/hosts")
-    hosts_content = hosts_path.read_text()
+    hosts_content = hosts_path.read_text(encoding="utf-8")
     if EPA_DOMAIN in hosts_content:
-        print(f"/etc/hosts already contains an entry for {EPA_DOMAIN}")
+        _LOGGER.info("/etc/hosts already contains an entry for %s", EPA_DOMAIN)
         return
-    print(f"Adding '{HOSTS_ENTRY}' to /etc/hosts (requires sudo)...")
+    _LOGGER.info("Adding '%s' to /etc/hosts (requires sudo, may not work for your environment)", HOSTS_ENTRY)
     subprocess.check_call(["sudo", "sh", "-c", f"echo '{HOSTS_ENTRY}' >> /etc/hosts"])
-    print("Done. Verify with: cat /etc/hosts")
-    print()
-    print("To remove later, edit /etc/hosts and delete the line:")
-    print(f"  {HOSTS_ENTRY}")
+    _LOGGER.info("Done. Verify with: cat /etc/hosts")
+    _LOGGER.info("")
+    _LOGGER.info("To remove later, edit /etc/hosts and delete the line:")
+    _LOGGER.info("  %s", HOSTS_ENTRY)
 
 
 # --- Configuration ---
@@ -399,7 +399,7 @@ if __name__ == "__main__":
 
     # Check /etc/hosts
     try:
-        if EPA_DOMAIN not in Path("/etc/hosts").read_text():
+        if EPA_DOMAIN not in Path("/etc/hosts").read_text(encoding="utf-8"):
             _LOGGER.warning(
                 "/etc/hosts does not redirect %s to localhost. Run with --setup-hosts using sudo first, or manually add: %s",
                 EPA_DOMAIN,

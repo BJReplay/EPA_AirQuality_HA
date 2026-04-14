@@ -24,7 +24,7 @@ from homeassistant.helpers.selector import (
 )
 
 from .collector import Collector
-from .const import CONF_SITE_ID, DOMAIN, TITLE
+from .const import CONF_SITE_ID, CONF_SITE_NAME, DOMAIN, TITLE
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -38,7 +38,7 @@ class EPAVicConfigFlow(ConfigFlow, domain=DOMAIN):
         self.data = {}
         self.collector: Collector | None = None
 
-    VERSION = 2
+    VERSION = 3
 
     @staticmethod
     @callback
@@ -148,13 +148,27 @@ class EPAVicConfigFlow(ConfigFlow, domain=DOMAIN):
                     # Populate observations
                     await self.collector.async_update()
 
+                    site_id = user_input[CONF_SITE_ID]
+                    await self.async_set_unique_id(site_id)
+                    self._abort_if_unique_id_configured()
+
+                    # Look up the site name from the already-fetched locations list.
+                    # This is more reliable than collector.site_name, which reflects
+                    # the nearest site (by lat/long) rather than the user's selection.
+                    location_label = next(
+                        (str(loc.get("label", "")) for loc in self.collector.get_location_list() if loc.get("value") == site_id),
+                        "",
+                    )
+                    entry_title = f"{TITLE} - {location_label}" if location_label else TITLE
+
                     options = {
                         CONF_API_KEY: user_input[CONF_API_KEY],
-                        CONF_SITE_ID: user_input[CONF_SITE_ID],
+                        CONF_SITE_ID: site_id,
+                        CONF_SITE_NAME: location_label,
                     }
 
                     return self.async_create_entry(
-                        title=TITLE,
+                        title=entry_title,
                         data={},
                         options=options,
                     )
@@ -213,7 +227,7 @@ class EPAVicOptionFlowHandler(OptionsFlow):
             errors["base"] = "bad_api"
         return collector, errors
 
-    async def async_step_init(self, user_input: dict | None = None) -> Any:
+    async def async_step_init(self, user_input: dict | None = None) -> ConfigFlowResult:
         """Initialise options flow with API key entry.
 
         Arguments:
@@ -281,11 +295,22 @@ class EPAVicOptionFlowHandler(OptionsFlow):
 
                     site_id = user_input[CONF_SITE_ID]
 
+                    # Look up the site name from the already-fetched locations list.
+                    location_label = next(
+                        (str(loc.get("label", "")) for loc in epa_locs if loc.get("value") == site_id),
+                        "",
+                    )
+                    entry_title = f"{TITLE} - {location_label}" if location_label else TITLE
+
                     all_config_data = {**self._options}
                     all_config_data[CONF_API_KEY] = self._validated_api_key
                     all_config_data[CONF_SITE_ID] = site_id
+                    all_config_data[CONF_SITE_NAME] = location_label
 
-                    return self.async_create_entry(title=TITLE, data=all_config_data)
+                    # Update the config entry title to reflect the selected location.
+                    self.hass.config_entries.async_update_entry(self._entry, title=entry_title)
+
+                    return self.async_create_entry(title=entry_title, data=all_config_data)
 
             except Exception:
                 _LOGGER.exception("Unexpected exception")

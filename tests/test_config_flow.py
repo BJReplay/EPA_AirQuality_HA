@@ -9,7 +9,11 @@ from homeassistant.components.epa_victoria_air_quality.config_flow import (
     EPAVicConfigFlow,
     EPAVicOptionFlowHandler,
 )
-from homeassistant.components.epa_victoria_air_quality.const import CONF_SITE_ID, DOMAIN
+from homeassistant.components.epa_victoria_air_quality.const import (
+    CONF_SITE_ID,
+    CONF_SITE_NAME,
+    DOMAIN,
+)
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
@@ -19,6 +23,7 @@ from . import (
     TEST_API_KEY_2,
     TEST_SITE_ID_1,
     TEST_SITE_ID_2,
+    TEST_SITE_NAME_2,
     create_mock_config_entry,
 )
 
@@ -33,6 +38,7 @@ async def test_full_user_flow(hass: HomeAssistant) -> None:
         mock_collector.get_location_list.return_value = [{"value": TEST_SITE_ID_1, "label": "Test Site"}]
         mock_collector.get_location.return_value = TEST_SITE_ID_1
         mock_collector.async_update = AsyncMock(return_value=None)
+        mock_collector.site_name = "Test Site"
 
         result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
         assert result.get("type") == FlowResultType.FORM
@@ -48,8 +54,12 @@ async def test_full_user_flow(hass: HomeAssistant) -> None:
             result["flow_id"], user_input={CONF_API_KEY: TEST_API_KEY_1, CONF_SITE_ID: TEST_SITE_ID_1}
         )
         assert result.get("type") == FlowResultType.CREATE_ENTRY
-        assert result.get("title") == "EPA Air Quality"
-        assert result.get("options") == {CONF_API_KEY: TEST_API_KEY_1, CONF_SITE_ID: TEST_SITE_ID_1}
+        assert result.get("title") == "EPA Air Quality - Test Site"
+        assert result.get("options") == {
+            CONF_API_KEY: TEST_API_KEY_1,
+            CONF_SITE_ID: TEST_SITE_ID_1,
+            CONF_SITE_NAME: "Test Site",
+        }
 
 
 @pytest.mark.asyncio
@@ -82,9 +92,10 @@ async def test_options_flow(hass: HomeAssistant) -> None:
             result["flow_id"], user_input={CONF_API_KEY: TEST_API_KEY_2, CONF_SITE_ID: TEST_SITE_ID_2}
         )
         assert result.get("type") == FlowResultType.CREATE_ENTRY
-        assert result.get("title") == "EPA Air Quality"
+        assert result.get("title") == f"EPA Air Quality - {TEST_SITE_NAME_2}"
         assert result.get("data", {}).get(CONF_API_KEY) == TEST_API_KEY_2
         assert result.get("data", {}).get(CONF_SITE_ID) == TEST_SITE_ID_2
+        assert result.get("data", {}).get(CONF_SITE_NAME) == TEST_SITE_NAME_2
 
 
 @pytest.mark.asyncio
@@ -197,7 +208,7 @@ async def test_location_flow_valid_location_list_becomes_false(hass: HomeAssista
     with patch("homeassistant.components.epa_victoria_air_quality.config_flow.Collector", autospec=True) as mock_collector_cls:
         mock_collector = mock_collector_cls.return_value
         mock_collector.async_setup = AsyncMock(return_value=None)
-        # First call (user step): True → advance; next two calls (location step): False → bad_api
+        # First call (user step): True = advance; then location step: False = bad_api
         mock_collector.valid_location_list.side_effect = [True, False, False]
         mock_collector.get_location_list.return_value = []
         mock_collector.get_location.return_value = None
