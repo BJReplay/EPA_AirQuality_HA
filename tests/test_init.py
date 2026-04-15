@@ -100,6 +100,23 @@ async def test_async_setup_entry_client_connector_error(hass: HomeAssistant) -> 
 
 
 @pytest.mark.asyncio
+async def test_async_setup_entry_sets_collector_site_name(hass: HomeAssistant) -> None:
+    """Setup seeds the collector with the saved selected site name."""
+    entry = create_mock_config_entry()
+    entry.add_to_hass(hass)
+
+    with patch("homeassistant.components.epa_victoria_air_quality.Collector") as mock_cls:
+        main_collector = mock_cls.return_value
+        main_collector.async_update = AsyncMock(return_value=None)
+        main_collector.async_setup = AsyncMock(return_value=None)
+
+        await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    assert main_collector.site_name == TEST_SITE_NAME_1
+
+
+@pytest.mark.asyncio
 async def test_async_setup_entry_resolves_site_name_for_migrated_entry(hass: HomeAssistant) -> None:
     """Setup resolves and stores a human-readable site name for entries that lack CONF_SITE_NAME."""
     # Simulate a migrated entry: options only have CONF_API_KEY and CONF_SITE_ID.

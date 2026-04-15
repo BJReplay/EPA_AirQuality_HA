@@ -112,11 +112,12 @@ class Collector:
                     try:
                         self.site_id = self.location_data[RECORDS][0][SITE_ID]
                         self.site_name = self.location_data[RECORDS][0][SITE_NAME]
-                        _LOGGER.debug("EPA Site ID Located: %s", self.site_id)
+                        _LOGGER.debug("EPA site %s (%s) located", self.site_name, self.site_id)
                         self.site_found = True
                     except KeyError:
                         _LOGGER.error(
-                            "Exception in get_location_data(): %s",
+                            "Exception in get_location_data() for site %s: %s",
+                            self.site_id,
                             traceback.format_exc(),
                         )
                         self.site_found = False
@@ -166,7 +167,7 @@ class Collector:
                         self.locations_list: list[SelectOptionDict] = [
                             SelectOptionDict(label=location[SITE_NAME], value=location[SITE_ID]) for location in sorted_locs
                         ]
-                        _LOGGER.debug("EPA Site List Loaded")
+                        _LOGGER.debug("EPA site list loaded: %s sites", len(self.locations_list))
                         self.sites_found = True
                     except KeyError:
                         _LOGGER.error(
@@ -427,14 +428,16 @@ class Collector:
                 if self.location_data is None:
                     await self.get_location_data()
 
+                _LOGGER.debug("Updating EPA %s observation data", self.site_name)
                 async with session.get(URL_BASE + self.get_location() + URL_PARAMETERS, ssl=False) as resp:
                     self.observations_data = await resp.json()
                     await self.extract_observation_data()
         except ConnectionRefusedError as e:
-            _LOGGER.error("Connection error in async_update, connection refused: %s", e)
+            _LOGGER.error("Connection error in async_update for site %s, connection refused: %s", self.site_name, e)
         except Exception:  # noqa: BLE001
             _LOGGER.error(
-                "Exception in async_update(): %s",
+                "Exception in async_update() for site %s: %s",
+                self.site_name,
                 traceback.format_exc(),
             )
 

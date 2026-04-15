@@ -94,6 +94,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: EPAConfigEntry) -> bool:
         latitude=options.get(CONF_LATITUDE, 0),
         longitude=options.get(CONF_LONGITUDE, 0),
     )
+    collector.site_name = options.get(CONF_SITE_NAME, "")
     coordinator: EPADataUpdateCoordinator = EPADataUpdateCoordinator(hass=hass, collector=collector, version=ua_version)
 
     entry.runtime_data = EPAData(coordinator, entry)

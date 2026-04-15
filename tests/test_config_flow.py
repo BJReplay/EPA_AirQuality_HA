@@ -309,3 +309,97 @@ async def test_options_flow_location_exception(hass: HomeAssistant) -> None:
         assert result.get("type") == FlowResultType.FORM
         assert result.get("step_id") == "location"
         assert result.get("errors", {}).get("base") == "unknown"  # pyright: ignore[reportOptionalMemberAccess]
+
+
+@pytest.mark.asyncio
+async def test_user_flow_duplicate_location_rejected(hass: HomeAssistant) -> None:
+    """Config flow location step rejects a site already configured in another entry."""
+    existing_entry = create_mock_config_entry()
+    existing_entry.add_to_hass(hass)
+
+    with patch("homeassistant.components.epa_victoria_air_quality.config_flow.Collector", autospec=True) as mock_collector_cls:
+        mock_collector = mock_collector_cls.return_value
+        mock_collector.async_setup = AsyncMock(return_value=None)
+        mock_collector.valid_location_list.return_value = True
+        mock_collector.get_location_list.return_value = [{"value": TEST_SITE_ID_1, "label": "Test Site"}]
+        mock_collector.get_location.return_value = TEST_SITE_ID_1
+        mock_collector.async_update = AsyncMock(return_value=None)
+
+        result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
+        result = await hass.config_entries.flow.async_configure(result["flow_id"], user_input={CONF_API_KEY: TEST_API_KEY_1})
+        assert result.get("step_id") == "location"
+
+        # Select the already-configured site
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], user_input={CONF_API_KEY: TEST_API_KEY_1, CONF_SITE_ID: TEST_SITE_ID_1}
+        )
+        assert result.get("type") == FlowResultType.FORM
+        assert result.get("step_id") == "location"
+        assert result.get("errors", {}).get("base") == "already_configured_location"
+        # Confirm no API call was made for the duplicate
+        mock_collector.async_update.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_options_flow_duplicate_location_rejected(hass: HomeAssistant) -> None:
+    """Options flow location step rejects a site already configured in a different entry."""
+    from . import DEFAULT_OPTIONS, TEST_SITE_ID_2, TEST_SITE_NAME_2
+
+    # Entry 1: site 10001 (the one being reconfigured)
+    entry1 = create_mock_config_entry()
+    entry1.add_to_hass(hass)
+
+    # Entry 2: site 10002 (already exists)
+    entry2 = create_mock_config_entry(
+        options={**DEFAULT_OPTIONS, CONF_SITE_ID: TEST_SITE_ID_2, CONF_SITE_NAME: TEST_SITE_NAME_2},
+    )
+    entry2.add_to_hass(hass)
+
+    with patch("homeassistant.components.epa_victoria_air_quality.config_flow.Collector", autospec=True) as mock_collector_cls:
+        mock_collector = mock_collector_cls.return_value
+        mock_collector.async_setup = AsyncMock(return_value=None)
+        mock_collector.valid_location_list.return_value = True
+        mock_collector.get_location_list.return_value = [
+            {"value": TEST_SITE_ID_1, "label": "Test Site 1"},
+            {"value": TEST_SITE_ID_2, "label": TEST_SITE_NAME_2},
+        ]
+        mock_collector.get_location.return_value = TEST_SITE_ID_1
+        mock_collector.async_update = AsyncMock(return_value=None)
+
+        result = await hass.config_entries.options.async_init(entry1.entry_id)
+        result = await hass.config_entries.options.async_configure(result["flow_id"], user_input={CONF_API_KEY: TEST_API_KEY_1})
+        assert result.get("step_id") == "location"
+
+        # Try to switch entry1 to site 10002, which is already used by entry2
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"], user_input={CONF_API_KEY: TEST_API_KEY_1, CONF_SITE_ID: TEST_SITE_ID_2}
+        )
+        assert result.get("type") == FlowResultType.FORM
+        assert result.get("step_id") == "location"
+        assert result.get("errors", {}).get("base") == "already_configured_location"
+        mock_collector.async_update.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_options_flow_same_location_allowed(hass: HomeAssistant) -> None:
+    """Options flow allows keeping the same location when reconfiguring."""
+    with patch("homeassistant.components.epa_victoria_air_quality.config_flow.Collector", autospec=True) as mock_collector_cls:
+        mock_collector = mock_collector_cls.return_value
+        mock_collector.async_setup = AsyncMock(return_value=None)
+        mock_collector.valid_location_list.return_value = True
+        mock_collector.get_location_list.return_value = [{"value": TEST_SITE_ID_1, "label": "Test Site 1"}]
+        mock_collector.get_location.return_value = TEST_SITE_ID_1
+        mock_collector.async_update = AsyncMock(return_value=None)
+
+        entry = create_mock_config_entry()
+        entry.add_to_hass(hass)
+
+        result = await hass.config_entries.options.async_init(entry.entry_id)
+        result = await hass.config_entries.options.async_configure(result["flow_id"], user_input={CONF_API_KEY: TEST_API_KEY_1})
+        assert result.get("step_id") == "location"
+
+        # Re-select the same site — must succeed
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"], user_input={CONF_API_KEY: TEST_API_KEY_1, CONF_SITE_ID: TEST_SITE_ID_1}
+        )
+        assert result.get("type") == FlowResultType.CREATE_ENTRY

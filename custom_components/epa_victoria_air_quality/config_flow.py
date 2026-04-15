@@ -132,33 +132,34 @@ class EPAVicConfigFlow(ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             try:
+                site_id = user_input[CONF_SITE_ID]
+                location_label = next(
+                    (str(loc.get("label", "")) for loc in epa_locs if loc.get("value") == site_id),
+                    "",
+                )
+
                 # Create the collector object with the given parameters
                 self.collector = Collector(
                     api_key=user_input[CONF_API_KEY],
                     latitude=self.hass.config.latitude,
                     longitude=self.hass.config.longitude,
-                    epa_site_id=user_input[CONF_SITE_ID],
+                    epa_site_id=site_id,
                 )
+                self.collector.site_name = location_label
 
                 # Save the user input into self.data so it's retained
                 self.data = user_input
                 if self.data.get(CONF_API_KEY) != present_key:
                     errors["base"] = "key_changed"
+                elif any(e.options.get(CONF_SITE_ID) == site_id for e in self.hass.config_entries.async_entries(DOMAIN)):
+                    errors["base"] = "already_configured_location"
                 else:
                     # Populate observations
                     await self.collector.async_update()
 
-                    site_id = user_input[CONF_SITE_ID]
                     await self.async_set_unique_id(site_id)
                     self._abort_if_unique_id_configured()
 
-                    # Look up the site name from the already-fetched locations list.
-                    # This is more reliable than collector.site_name, which reflects
-                    # the nearest site (by lat/long) rather than the user's selection.
-                    location_label = next(
-                        (str(loc.get("label", "")) for loc in self.collector.get_location_list() if loc.get("value") == site_id),
-                        "",
-                    )
                     entry_title = f"{TITLE} - {location_label}" if location_label else TITLE
 
                     options = {
@@ -290,27 +291,35 @@ class EPAVicOptionFlowHandler(OptionsFlow):
                 if self.data.get(CONF_API_KEY) != present_key:
                     errors["base"] = "key_changed"
                 else:
-                    # Populate observations
-                    await self._collector.async_update()
-
                     site_id = user_input[CONF_SITE_ID]
-
-                    # Look up the site name from the already-fetched locations list.
                     location_label = next(
                         (str(loc.get("label", "")) for loc in epa_locs if loc.get("value") == site_id),
                         "",
                     )
-                    entry_title = f"{TITLE} - {location_label}" if location_label else TITLE
 
-                    all_config_data = {**self._options}
-                    all_config_data[CONF_API_KEY] = self._validated_api_key
-                    all_config_data[CONF_SITE_ID] = site_id
-                    all_config_data[CONF_SITE_NAME] = location_label
+                    if any(
+                        e.entry_id != self._entry.entry_id and e.options.get(CONF_SITE_ID) == site_id
+                        for e in self.hass.config_entries.async_entries(DOMAIN)
+                    ):
+                        errors["base"] = "already_configured_location"
+                    else:
+                        self._collector.site_id = site_id
+                        self._collector.site_name = location_label
 
-                    # Update the config entry title to reflect the selected location.
-                    self.hass.config_entries.async_update_entry(self._entry, title=entry_title)
+                        # Populate observations for the selected site.
+                        await self._collector.async_update()
 
-                    return self.async_create_entry(title=entry_title, data=all_config_data)
+                        entry_title = f"{TITLE} - {location_label}" if location_label else TITLE
+
+                        all_config_data = {**self._options}
+                        all_config_data[CONF_API_KEY] = self._validated_api_key
+                        all_config_data[CONF_SITE_ID] = site_id
+                        all_config_data[CONF_SITE_NAME] = location_label
+
+                        # Update the config entry title to reflect the selected location.
+                        self.hass.config_entries.async_update_entry(self._entry, title=entry_title)
+
+                        return self.async_create_entry(title=entry_title, data=all_config_data)
 
             except Exception:
                 _LOGGER.exception("Unexpected exception")
