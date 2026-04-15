@@ -12,9 +12,9 @@ from homeassistant.components.epa_victoria_air_quality import (
     get_version,
 )
 from homeassistant.components.epa_victoria_air_quality.const import (
+    CONF_LEGACY_UNIQUE_IDS,
     CONF_SITE_ID,
     CONF_SITE_NAME,
-    DOMAIN,
     TITLE,
 )
 from homeassistant.config_entries import ConfigEntryState
@@ -44,6 +44,7 @@ async def test_async_migrate_entry_version_1_to_3(hass: HomeAssistant) -> None:
     assert call_kwargs["title"] == f"{TITLE} - {TEST_SITE_ID_1}"
     assert call_kwargs["options"][CONF_SITE_ID] == TEST_SITE_ID_1
     assert call_kwargs["options"][CONF_API_KEY] == TEST_API_KEY_1
+    assert call_kwargs["options"][CONF_LEGACY_UNIQUE_IDS] is True
 
 
 @pytest.mark.asyncio
@@ -75,8 +76,10 @@ async def test_async_migrate_entry_options_already_has_site_id(hass: HomeAssista
     assert result is True
     call_kwargs = mock_update.call_args.kwargs
     assert call_kwargs["version"] == 3
-    # options must be unchanged — no second copy of CONF_SITE_ID from data.
-    assert "options" not in call_kwargs
+    # options is always updated during migration to set CONF_LEGACY_UNIQUE_IDS.
+    assert call_kwargs["options"][CONF_LEGACY_UNIQUE_IDS] is True
+    # Existing CONF_SITE_ID must be preserved unchanged.
+    assert call_kwargs["options"][CONF_SITE_ID] == TEST_SITE_ID_1
 
 
 @pytest.mark.asyncio

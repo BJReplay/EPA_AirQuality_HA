@@ -13,7 +13,7 @@ from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import device_registry as dr
 
 from .collector import Collector
-from .const import CONF_SITE_ID, CONF_SITE_NAME, DOMAIN, TITLE
+from .const import CONF_LEGACY_UNIQUE_IDS, CONF_SITE_ID, CONF_SITE_NAME, DOMAIN, TITLE
 from .coordinator import EPADataUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -43,9 +43,11 @@ async def async_migrate_entry(hass: HomeAssistant, entry: EPAConfigEntry) -> boo
                 api_key = entry.data.get(CONF_API_KEY, "")
                 if api_key and not new_options.get(CONF_API_KEY):
                     new_options[CONF_API_KEY] = api_key
-                update_kwargs["options"] = new_options
-            else:
-                new_options = dict(entry.options)
+            # Mark this entry as using legacy unique IDs so sensor.py preserves
+            # the upstream format (epavic_epa_api_{name}) and avoids breaking
+            # existing entity registry entries for single-site installs.
+            new_options[CONF_LEGACY_UNIQUE_IDS] = True
+            update_kwargs["options"] = new_options
 
             # Fix the entry title if it never got a location suffix.
             if entry.title == TITLE:

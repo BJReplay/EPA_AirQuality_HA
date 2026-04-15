@@ -8,6 +8,7 @@ import pytest
 from homeassistant.components.epa_victoria_air_quality.const import (
     ATTR_CONFIDENCE,
     ATTR_DATA_SOURCE,
+    CONF_LEGACY_UNIQUE_IDS,
     TYPE_AQI_PM25,
     TYPE_AQI_PM25_24H,
 )
@@ -20,7 +21,7 @@ from homeassistant.components.epa_victoria_air_quality.sensor import (
 )
 from homeassistant.core import HomeAssistant
 
-from . import TEST_SITE_ID_1, create_mock_config_entry
+from . import DEFAULT_OPTIONS, TEST_SITE_ID_1, create_mock_config_entry
 
 
 def _make_mock_collector(sensor_data: object = 8.5) -> MagicMock:
@@ -138,10 +139,29 @@ async def test_sensor_suggested_object_id(hass: HomeAssistant) -> None:
 
 @pytest.mark.asyncio
 async def test_sensor_unique_id(hass: HomeAssistant) -> None:
-    """The unique_id matches the upstream format to preserve existing entity registrations."""
+    """New config entries (no legacy flag) use the site-id-prefixed unique ID format."""
     sensor, _ = _make_sensor(hass)
-    from homeassistant.components.epa_victoria_air_quality.sensor import SENSORS
 
+    expected = f"epavic_epa_api_{TEST_SITE_ID_1}_{SENSORS[TYPE_AQI_PM25].name}"
+    assert sensor.unique_id == expected
+
+
+@pytest.mark.asyncio
+async def test_sensor_unique_id_legacy(hass: HomeAssistant) -> None:
+    """Migrated (legacy) entries preserve the upstream unique ID format to avoid orphaning entity registry entries."""
+
+    legacy_options = {**DEFAULT_OPTIONS, CONF_LEGACY_UNIQUE_IDS: True}
+    entry = create_mock_config_entry(options=legacy_options)
+    entry.add_to_hass(hass)
+
+    mock_collector = _make_mock_collector()
+    mock_coordinator = MagicMock(spec=EPADataUpdateCoordinator)
+    mock_coordinator.hass = hass
+    mock_coordinator.collector = mock_collector
+    mock_coordinator.get_version = "1.0"
+    mock_coordinator.async_add_listener = MagicMock(return_value=lambda: None)
+
+    sensor = EPAQualitySensor(mock_coordinator, SENSORS[TYPE_AQI_PM25], entry)
     expected = f"epavic_epa_api_{SENSORS[TYPE_AQI_PM25].name}"
     assert sensor.unique_id == expected
 

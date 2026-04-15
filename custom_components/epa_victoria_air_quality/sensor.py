@@ -36,6 +36,8 @@ from .const import (
     ATTR_ENTRY_TYPE,
     ATTR_TOTAL_SAMPLE,
     ATTRIBUTION,
+    CONF_LEGACY_UNIQUE_IDS,
+    CONF_SITE_ID,
     DOMAIN,
     MANUFACTURER,
     SCAN_INTERVAL,
@@ -184,7 +186,13 @@ class EPAQualitySensor(CoordinatorEntity[EPADataUpdateCoordinator], SensorEntity
         self._collector: Collector = collector
         self._update_policy: SensorUpdatePolicy = get_sensor_update_policy()
         self._entry: EPAConfigEntry = entry
-        self._attr_unique_id: str = f"epavic_epa_api_{entity_description.name}"
+        if entry.options.get(CONF_LEGACY_UNIQUE_IDS, False):
+            # Preserve the upstream unique ID format for entries migrated from v1/v2
+            # so existing entity registry entries are not orphaned.
+            self._attr_unique_id = f"epavic_epa_api_{entity_description.name}"
+        else:
+            site_id = entry.options.get(CONF_SITE_ID, entry.entry_id)
+            self._attr_unique_id = f"epavic_epa_api_{site_id}_{entity_description.name}"
         self._attributes: dict = {}
         self._attr_extra_state_attributes: dict = {}
 

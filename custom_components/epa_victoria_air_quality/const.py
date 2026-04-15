@@ -8,6 +8,7 @@ from typing import Final
 ATTR_ENTRY_TYPE: Final = "entry_type"
 ATTRIBUTION: Final = "Data retrieved from EPA (Victoria)"
 COLLECTOR: Final = "collector"
+CONF_LEGACY_UNIQUE_IDS: Final = "legacy_unique_ids"
 CONF_SITE_ID: Final = "site_id"
 CONF_SITE_NAME: Final = "site_name"
 DOMAIN: Final = "epa_victoria_air_quality"
