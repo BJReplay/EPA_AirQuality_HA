@@ -115,7 +115,7 @@ class Collector:
                         _LOGGER.debug("EPA Site ID Located: %s", self.site_id)
                         self.site_found = True
                     except KeyError:
-                        _LOGGER.debug(
+                        _LOGGER.error(
                             "Exception in get_location_data(): %s",
                             traceback.format_exc(),
                         )
@@ -169,7 +169,7 @@ class Collector:
                         _LOGGER.debug("EPA Site List Loaded")
                         self.sites_found = True
                     except KeyError:
-                        _LOGGER.debug(
+                        _LOGGER.error(
                             "Exception in get_locations_list(): %s",
                             traceback.format_exc(),
                         )
@@ -433,7 +433,7 @@ class Collector:
         except ConnectionRefusedError as e:
             _LOGGER.error("Connection error in async_update, connection refused: %s", e)
         except Exception:  # noqa: BLE001
-            _LOGGER.debug(
+            _LOGGER.error(
                 "Exception in async_update(): %s",
                 traceback.format_exc(),
             )
@@ -447,7 +447,7 @@ class Collector:
         except ConnectionRefusedError as e:
             _LOGGER.error("Connection error in async_setup, connection refused: %s", e)
         except Exception:  # noqa: BLE001
-            _LOGGER.debug(
+            _LOGGER.error(
                 "Exception in async_setup(): %s",
                 traceback.format_exc(),
             )

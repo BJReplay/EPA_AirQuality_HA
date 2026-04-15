@@ -84,7 +84,7 @@ class EPAVicConfigFlow(ConfigFlow, domain=DOMAIN):
                 # Check if location is valid
                 await self.collector.async_setup()
                 if not self.collector.valid_location_list():
-                    _LOGGER.debug("Unable to retrieve location list from EPA")
+                    _LOGGER.error("Unable to retrieve location list from EPA")
                     errors["base"] = "bad_api"
                 else:
                     return await self.async_step_location()
@@ -124,7 +124,7 @@ class EPAVicConfigFlow(ConfigFlow, domain=DOMAIN):
         if not self.collector.valid_location_list():
             await self.collector.async_setup()
             if not self.collector.valid_location_list():
-                _LOGGER.debug("Unable to retrieve location list from EPA")
+                _LOGGER.error("Unable to retrieve location list from EPA")
                 errors["base"] = "bad_api"
 
         epa_locs: list[SelectOptionDict] = self.collector.get_location_list()
