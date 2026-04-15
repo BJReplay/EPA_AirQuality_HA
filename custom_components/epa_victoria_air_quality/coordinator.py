@@ -21,7 +21,6 @@ class EPADataUpdateCoordinator(DataUpdateCoordinator):
         self._version: str = version
         self._hass: HomeAssistant = hass
 
-        DEFAULT_SCAN_INTERVAL = SCAN_INTERVAL  # EPA Updates roughly once every 30 minutes
         DEBOUNCE_TIME = 60  # in seconds
 
         super().__init__(
@@ -30,7 +29,7 @@ class EPADataUpdateCoordinator(DataUpdateCoordinator):
             name=DOMAIN,
             update_method=self.collector.async_update,
             setup_method=self.collector.async_setup,
-            update_interval=DEFAULT_SCAN_INTERVAL,
+            update_interval=SCAN_INTERVAL,  # EPA Updates roughly once every 30 minutes, so default 15 is reasonably aggressive.
             request_refresh_debouncer=debounce.Debouncer(hass, _LOGGER, cooldown=DEBOUNCE_TIME, immediate=True),
         )
 
