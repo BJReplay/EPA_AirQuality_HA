@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime as dt, timedelta
+from datetime import datetime as dt
 from enum import Enum
 import logging
 import traceback
@@ -40,7 +40,6 @@ from .const import (
     CONF_SITE_ID,
     DOMAIN,
     MANUFACTURER,
-    SCAN_INTERVAL,
     TYPE_AQI,
     TYPE_AQI_24H,
     TYPE_AQI_PM25,
@@ -113,8 +112,6 @@ SENSORS: dict[str, SensorEntityDescription] = {
         state_class=SensorStateClass.MEASUREMENT,
     ),
 }
-
-SCAN_INTERVAL = timedelta(minutes=SCAN_INTERVAL)
 
 
 async def async_setup_entry(

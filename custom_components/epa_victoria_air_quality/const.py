@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
 from typing import Final
 
 # Integration constants
@@ -65,4 +66,4 @@ SITE_TYPE_SENSOR: Final = "Sensor"
 SITE_TYPE_STANDARD: Final = "Standard"
 SITE_TYPE_CAMERA: Final = "Camera"
 SITE_HEALTH_ADVICES: Final = "siteHealthAdvices"
-SCAN_INTERVAL = 15
+SCAN_INTERVAL: Final = timedelta(minutes=15)
