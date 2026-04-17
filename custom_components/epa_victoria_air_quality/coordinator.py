@@ -1,6 +1,5 @@
 """The EPA VIC Air Quality coordinator."""
 
-import datetime
 import logging
 
 from homeassistant.core import HomeAssistant, callback
@@ -22,9 +21,6 @@ class EPADataUpdateCoordinator(DataUpdateCoordinator):
         self._version: str = version
         self._hass: HomeAssistant = hass
 
-        DEFAULT_SCAN_INTERVAL = datetime.timedelta(
-            minutes=SCAN_INTERVAL
-        )  # EPA Updates roughly once every 30 minutes
         DEBOUNCE_TIME = 60  # in seconds
 
         super().__init__(
@@ -33,15 +29,11 @@ class EPADataUpdateCoordinator(DataUpdateCoordinator):
             name=DOMAIN,
             update_method=self.collector.async_update,
             setup_method=self.collector.async_setup,
-            update_interval=DEFAULT_SCAN_INTERVAL,
-            request_refresh_debouncer=debounce.Debouncer(
-                hass, _LOGGER, cooldown=DEBOUNCE_TIME, immediate=True
-            ),
+            update_interval=SCAN_INTERVAL,  # EPA Updates roughly once every 30 minutes, so default 15 is reasonably aggressive.
+            request_refresh_debouncer=debounce.Debouncer(hass, _LOGGER, cooldown=DEBOUNCE_TIME, immediate=True),
         )
 
-        self.entity_registry_updated_unsub = self.hass.bus.async_listen(
-            er.EVENT_ENTITY_REGISTRY_UPDATED, self.entity_registry_updated
-        )
+        self.entity_registry_updated_unsub = self.hass.bus.async_listen(er.EVENT_ENTITY_REGISTRY_UPDATED, self.entity_registry_updated)
 
     @callback
     def entity_registry_updated(self, event):
@@ -53,20 +45,14 @@ class EPADataUpdateCoordinator(DataUpdateCoordinator):
         """Remove devices with no entities."""
         entity_registry = er.async_get(self.hass)
         device_registry = dr.async_get(self.hass)
-        device_list = dr.async_entries_for_config_entry(
-            device_registry, self.config_entry.entry_id
-        )
+        device_list = dr.async_entries_for_config_entry(device_registry, self.config_entry.entry_id)  # pyright: ignore[reportOptionalMemberAccess]
 
         for device_entry in device_list:
-            entities = er.async_entries_for_device(
-                entity_registry, device_entry.id, include_disabled_entities=True
-            )
+            entities = er.async_entries_for_device(entity_registry, device_entry.id, include_disabled_entities=True)
 
             if not entities:
                 _LOGGER.debug("Removing orphaned device: %s", device_entry.name)
-                device_registry.async_update_device(
-                    device_entry.id, remove_config_entry_id=self.config_entry.entry_id
-                )
+                device_registry.async_update_device(device_entry.id, remove_config_entry_id=self.config_entry.entry_id)  # pyright: ignore[reportOptionalMemberAccess]
 
     async def setup(self) -> bool:
         """Set up EPADataUpdateCoordinator."""

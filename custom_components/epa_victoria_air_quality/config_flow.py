@@ -8,10 +8,14 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant import config_entries
-from homeassistant.config_entries import ConfigEntry, ConfigFlow, OptionsFlow
-from homeassistant.const import CONF_API_KEY, CONF_LATITUDE, CONF_LONGITUDE
+from homeassistant.config_entries import (
+    ConfigEntry,
+    ConfigFlow,
+    ConfigFlowResult,
+    OptionsFlow,
+)
+from homeassistant.const import CONF_API_KEY
 from homeassistant.core import callback
-from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers.selector import (
     SelectOptionDict,
     SelectSelector,
@@ -20,7 +24,7 @@ from homeassistant.helpers.selector import (
 )
 
 from .collector import Collector
-from .const import CONF_SITE_ID, DOMAIN, TITLE
+from .const import CONF_SITE_ID, CONF_SITE_NAME, DOMAIN, TITLE
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -32,9 +36,9 @@ class EPAVicConfigFlow(ConfigFlow, domain=DOMAIN):
     def __init__(self) -> None:
         """Initialise the config flow."""
         self.data = {}
-        self.collector: Collector = None
+        self.collector: Collector | None = None
 
-    VERSION = 2
+    VERSION = 3
 
     @staticmethod
     @callback
@@ -52,16 +56,14 @@ class EPAVicConfigFlow(ConfigFlow, domain=DOMAIN):
         """
         return EPAVicOptionFlowHandler(config_entry)
 
-    async def async_step_user(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Handle a flow initiated by the user.
 
         Arguments:
             user_input (dict[str, Any] | None, optional): The config submitted by a user. Defaults to None.
 
         Returns:
-            FlowResult: The form to show.
+            ConfigFlowResult: The next step or form to show.
 
         """
 
@@ -82,28 +84,14 @@ class EPAVicConfigFlow(ConfigFlow, domain=DOMAIN):
                 # Check if location is valid
                 await self.collector.async_setup()
                 if not self.collector.valid_location_list():
-                    _LOGGER.debug("Unable to retrieve location list from EPA")
+                    _LOGGER.error("Unable to retrieve location list from EPA")
                     errors["base"] = "bad_api"
                 else:
-                    # Get the API Key
-                    options = {
-                        CONF_API_KEY: user_input[CONF_API_KEY],
-                    }
                     return await self.async_step_location()
-
-                options = {
-                    CONF_API_KEY: user_input[CONF_API_KEY],
-                }
 
             except Exception:
                 _LOGGER.exception("Unexpected exception")
                 errors["base"] = "unknown"
-
-            return self.async_create_entry(
-                title=TITLE,
-                data={},
-                options=options,
-            )
 
         return self.async_show_form(
             step_id="user",
@@ -118,69 +106,84 @@ class EPAVicConfigFlow(ConfigFlow, domain=DOMAIN):
             },
         )
 
-    async def async_step_location(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    async def async_step_location(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Handle a flow initiated by the user.
 
         Arguments:
             user_input (dict[str, Any] | None, optional): The config submitted by a user. Defaults to None.
 
         Returns:
-            FlowResult: The form to show.
+            ConfigFlowResult: The form or created entry.
 
         """
         errors = {}
 
+        if self.collector is None:
+            return await self.async_step_user()
+
         if not self.collector.valid_location_list():
             await self.collector.async_setup()
             if not self.collector.valid_location_list():
-                _LOGGER.debug("Unable to retrieve location list from EPA")
+                _LOGGER.error("Unable to retrieve location list from EPA")
                 errors["base"] = "bad_api"
 
         epa_locs: list[SelectOptionDict] = self.collector.get_location_list()
+        present_key = self.data.get(CONF_API_KEY)
 
         if user_input is not None:
             try:
+                site_id = user_input[CONF_SITE_ID]
+                location_label = next(
+                    (str(loc.get("label", "")) for loc in epa_locs if loc.get("value") == site_id),
+                    "",
+                )
+
                 # Create the collector object with the given parameters
                 self.collector = Collector(
                     api_key=user_input[CONF_API_KEY],
                     latitude=self.hass.config.latitude,
                     longitude=self.hass.config.longitude,
-                    epa_site_id=user_input[CONF_SITE_ID],
+                    epa_site_id=site_id,
                 )
+                self.collector.site_name = location_label
 
                 # Save the user input into self.data so it's retained
                 self.data = user_input
+                if self.data.get(CONF_API_KEY) != present_key:
+                    errors["base"] = "key_changed"
+                elif any(e.options.get(CONF_SITE_ID) == site_id for e in self.hass.config_entries.async_entries(DOMAIN)):
+                    errors["base"] = "already_configured_location"
+                else:
+                    # Populate observations
+                    await self.collector.async_update()
 
-                # Populate observations
-                await self.collector.async_update()
+                    await self.async_set_unique_id(site_id)
+                    self._abort_if_unique_id_configured()
 
-                options = {
-                    CONF_API_KEY: user_input[CONF_API_KEY],
-                    CONF_SITE_ID: user_input[CONF_SITE_ID],
-                }
+                    entry_title = f"{TITLE} - {location_label}" if location_label else TITLE
+
+                    options = {
+                        CONF_API_KEY: user_input[CONF_API_KEY],
+                        CONF_SITE_ID: site_id,
+                        CONF_SITE_NAME: location_label,
+                    }
+
+                    return self.async_create_entry(
+                        title=entry_title,
+                        data={},
+                        options=options,
+                    )
 
             except Exception:
                 _LOGGER.exception("Unexpected exception")
                 errors["base"] = "unknown"
 
-            return self.async_create_entry(
-                title=TITLE,
-                data={},
-                options=options,
-            )
-
         return self.async_show_form(
             step_id="location",
             data_schema=vol.Schema(
                 {
-                    vol.Required(
-                        CONF_API_KEY, default=self.data.get(CONF_API_KEY)
-                    ): str,
-                    vol.Required(
-                        CONF_SITE_ID, default=self.collector.get_location()
-                    ): SelectSelector(
+                    vol.Required(CONF_API_KEY, default=self.data.get(CONF_API_KEY)): str,
+                    vol.Required(CONF_SITE_ID, default=self.collector.get_location()): SelectSelector(
                         SelectSelectorConfig(
                             options=epa_locs,
                             mode=SelectSelectorMode.DROPDOWN,
@@ -204,62 +207,129 @@ class EPAVicOptionFlowHandler(OptionsFlow):
         """Initialize options flow."""
         self._entry: ConfigEntry = config_entry
         self._options = dict(config_entry.options)
+        self._collector: Collector | None = None
+        self._validated_api_key: str = ""
+        self.data = {}
 
-    async def async_step_init(self, user_input: dict | None = None) -> Any:
-        """Initialise main dialogue step.
+    async def _async_build_collector(self, api_key: str) -> tuple[Collector, dict[str, str]]:
+        """Build collector and validate API key.
 
-        Arguments:
-            user_input (dict, optional): The input provided by the user. Defaults to None.
-
-        Returns:
-            Any: Either an error, or the configuration dialogue results.
-
+        Returns the collector and any errors encountered.
         """
-
-        errors = {}
-        api_key = self._options.get(CONF_API_KEY)
-        latitude = self._options.get(CONF_LATITUDE)
-        longitude = self._options.get(CONF_LONGITUDE)
-        try:
-            site_id = self._options.get(CONF_SITE_ID)
-        except KeyError:
-            site_id = "Determine from Location"
-
-        collector: Collector = Collector(
-            api_key=api_key, latitude=latitude, longitude=longitude
+        errors: dict[str, str] = {}
+        collector = Collector(
+            api_key=api_key,
+            latitude=self.hass.config.latitude,
+            longitude=self.hass.config.longitude,
         )
         await collector.async_setup()
         if not collector.valid_location_list():
             _LOGGER.debug("Unable to retrieve location list from EPA")
             errors["base"] = "bad_api"
+        return collector, errors
 
-        epa_locs: list[SelectOptionDict] = collector.get_location_list()
+    async def async_step_init(self, user_input: dict | None = None) -> ConfigFlowResult:
+        """Initialise options flow with API key entry.
+
+        Arguments:
+            user_input (dict, optional): The input provided by the user. Defaults to None.
+
+        Returns:
+            Any: Either an error, or the next step.
+
+        """
+        errors: dict[str, str] = {}
+        api_key = self._options.get(CONF_API_KEY, "")
 
         if user_input is not None:
-            all_config_data = {**self._options}
-
-            site_id = user_input[CONF_SITE_ID]
-            all_config_data[CONF_SITE_ID] = site_id
-
-            api_key = user_input[CONF_API_KEY].replace(" ", "")
-            all_config_data[CONF_API_KEY] = api_key
-
             self.data = user_input
+            api_key = user_input[CONF_API_KEY].replace(" ", "")
+            self._collector, errors = await self._async_build_collector(api_key)
 
-            self.hass.config_entries.async_update_entry(
-                self._entry,
-                title=TITLE,
-                options=all_config_data,
-            )
-            await collector.async_update()
-
-            return self.async_create_entry(title=TITLE, data=None)
+            if not errors:
+                self._validated_api_key = api_key
+                return await self.async_step_location()
 
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(
                 {
                     vol.Required(CONF_API_KEY, default=api_key): str,
+                }
+            ),
+            errors=errors,
+        )
+
+    async def async_step_location(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """Handle a flow initiated by the user.
+
+        Arguments:
+            user_input (dict[str, Any] | None, optional): The config submitted by a user. Defaults to None.
+
+        Returns:
+            ConfigFlowResult: The form or created entry.
+
+        """
+        errors = {}
+
+        if self._collector is None:
+            _LOGGER.exception("Unexpected exception")
+            errors["base"] = "unknown"
+            return self.async_show_form(
+                step_id="location",
+                data_schema=None,
+                errors=errors,
+            )
+        site_id = self._options.get(CONF_SITE_ID, self._collector.get_location())
+        epa_locs: list[SelectOptionDict] = self._collector.get_location_list()
+        present_key = self.data.get(CONF_API_KEY)
+
+        if user_input is not None:
+            try:
+                # Save the user input into self.data so it's retained
+                self.data = user_input
+                if self.data.get(CONF_API_KEY) != present_key:
+                    errors["base"] = "key_changed"
+                else:
+                    site_id = user_input[CONF_SITE_ID]
+                    location_label = next(
+                        (str(loc.get("label", "")) for loc in epa_locs if loc.get("value") == site_id),
+                        "",
+                    )
+
+                    if any(
+                        e.entry_id != self._entry.entry_id and e.options.get(CONF_SITE_ID) == site_id
+                        for e in self.hass.config_entries.async_entries(DOMAIN)
+                    ):
+                        errors["base"] = "already_configured_location"
+                    else:
+                        self._collector.site_id = site_id
+                        self._collector.site_name = location_label
+
+                        # Populate observations for the selected site.
+                        await self._collector.async_update()
+
+                        entry_title = f"{TITLE} - {location_label}" if location_label else TITLE
+
+                        all_config_data = {**self._options}
+                        all_config_data[CONF_API_KEY] = self._validated_api_key
+                        all_config_data[CONF_SITE_ID] = site_id
+                        all_config_data[CONF_SITE_NAME] = location_label
+
+                        # Update the config entry title to reflect the selected location.
+                        self.hass.config_entries.async_update_entry(self._entry, title=entry_title)
+
+                        return self.async_create_entry(title=entry_title, data=all_config_data)
+
+            except Exception:
+                _LOGGER.exception("Unexpected exception")
+                errors["base"] = "unknown"
+
+        return self.async_show_form(
+            step_id="location",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_API_KEY, default=self.data.get(CONF_API_KEY)): str,
                     vol.Required(CONF_SITE_ID, default=site_id): SelectSelector(
                         SelectSelectorConfig(
                             options=epa_locs,
@@ -270,4 +340,8 @@ class EPAVicOptionFlowHandler(OptionsFlow):
                 }
             ),
             errors=errors,
+            description_placeholders={
+                CONF_API_KEY: "Enter your API key provided by EPA Victoria.",
+                CONF_SITE_ID: "Enter your the EPA Victoria Site ID, or leave as is to determine from location.",
+            },
         )

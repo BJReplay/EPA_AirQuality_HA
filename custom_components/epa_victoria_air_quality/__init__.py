@@ -2,7 +2,6 @@
 
 from dataclasses import dataclass
 import logging
-from typing import Any
 
 from aiohttp.client_exceptions import ClientConnectorError
 
@@ -14,7 +13,7 @@ from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import device_registry as dr
 
 from .collector import Collector
-from .const import CONF_SITE_ID, DOMAIN
+from .const import CONF_LEGACY_UNIQUE_IDS, CONF_SITE_ID, CONF_SITE_NAME, DOMAIN, TITLE
 from .coordinator import EPADataUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -28,13 +27,38 @@ async def async_migrate_entry(hass: HomeAssistant, entry: EPAConfigEntry) -> boo
     """Migrate old entry."""
     _LOGGER.debug("Migrating from version %s", entry.version)
 
-    if entry.version == 0:
-        new = {**entry.data}
-        if CONF_SITE_ID in new:
-            new[CONF_SITE_ID] = entry.data[CONF_SITE_ID]
+    if entry.version < 3:
+        # All versions below 3 are migrated.
+        # Changes in v3 are:
+        #   - CONF_SITE_ID / CONF_API_KEY moved from entry.data to entry.options
+        #   - Entry title includes the human-readable location name
+        site_id = entry.options.get(CONF_SITE_ID) or entry.data.get(CONF_SITE_ID, "")
+        update_kwargs: dict = {"version": 3}
 
-        entry.version = 1
-        hass.config_entries.async_update_entry(entry, data=new)
+        if site_id:
+            # Migrate CONF_SITE_ID (and CONF_API_KEY) from data to options if absent.
+            new_options = dict(entry.options)
+            if not new_options.get(CONF_SITE_ID):
+                new_options[CONF_SITE_ID] = site_id
+                api_key = entry.data.get(CONF_API_KEY, "")
+                if api_key and not new_options.get(CONF_API_KEY):
+                    new_options[CONF_API_KEY] = api_key
+            # Mark this entry as using legacy unique IDs so sensor.py preserves
+            # the upstream format (epavic_epa_api_{name}) and avoids breaking
+            # existing entity registry entries for single-site installs.
+            new_options[CONF_LEGACY_UNIQUE_IDS] = True
+            update_kwargs["options"] = new_options
+
+            # Fix the entry title if it never got a location suffix.
+            if entry.title == TITLE:
+                location_name = new_options.get(CONF_SITE_NAME) or site_id
+                update_kwargs["title"] = f"{TITLE} - {location_name}"
+
+            # Set unique_id if missing.
+            if entry.unique_id is None:
+                update_kwargs["unique_id"] = site_id
+
+        hass.config_entries.async_update_entry(entry, **update_kwargs)
 
     _LOGGER.info("Migration to version %s successful", entry.version)
     return True
@@ -64,15 +88,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: EPAConfigEntry) -> bool:
 
     options = entry.options
     collector: Collector = Collector(
-        api_key=options.get(CONF_API_KEY),
+        api_key=options.get(CONF_API_KEY, ""),
         version_string=ua_version,
-        epa_site_id=options.get(CONF_SITE_ID),
-        latitude=options.get(CONF_LATITUDE),
-        longitude=options.get(CONF_LONGITUDE),
+        epa_site_id=options.get(CONF_SITE_ID, ""),
+        latitude=options.get(CONF_LATITUDE, 0),
+        longitude=options.get(CONF_LONGITUDE, 0),
     )
-    coordinator: EPADataUpdateCoordinator = EPADataUpdateCoordinator(
-        hass=hass, collector=collector, version=ua_version
-    )
+    collector.site_name = options.get(CONF_SITE_NAME, "")
+    coordinator: EPADataUpdateCoordinator = EPADataUpdateCoordinator(hass=hass, collector=collector, version=ua_version)
 
     entry.runtime_data = EPAData(coordinator, entry)
 
@@ -85,6 +108,31 @@ async def async_setup_entry(hass: HomeAssistant, entry: EPAConfigEntry) -> bool:
         await collector.async_update()
     except ClientConnectorError as ex:
         raise ConfigEntryNotReady from ex
+
+    # One-time lookup for migrated entries that pre-date CONF_SITE_NAME storage.
+    # Fetches the locations list from the API to resolve the numeric site ID to a
+    # human-readable name, then persists it so this call is never repeated.
+    if not entry.options.get(CONF_SITE_NAME):
+        site_id = entry.options.get(CONF_SITE_ID, "")
+        if site_id:
+            lookup_collector = Collector(
+                api_key=entry.options.get(CONF_API_KEY, ""),
+                version_string=ua_version,
+                latitude=hass.config.latitude,
+                longitude=hass.config.longitude,
+            )
+            await lookup_collector.async_setup()
+            site_name = next(
+                (str(loc.get("label", "")) for loc in lookup_collector.get_location_list() if loc.get("value") == site_id),
+                "",
+            )
+            if site_name:
+                new_title = f"{TITLE} - {site_name}"
+                hass.config_entries.async_update_entry(
+                    entry,
+                    options={**entry.options, CONF_SITE_NAME: site_name},
+                    title=new_title,
+                )
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     await coordinator.async_refresh()
@@ -153,9 +201,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
 
-async def async_remove_config_entry_device(
-    hass: HomeAssistant, entry: ConfigEntry, device
-) -> bool:
+async def async_remove_config_entry_device(hass: HomeAssistant, entry: ConfigEntry, device: dr.DeviceEntry) -> bool:
     """Remove a device.
 
     Arguments:
@@ -167,7 +213,8 @@ async def async_remove_config_entry_device(
         bool: Whether the removal completed successfully.
 
     """
-    dr(hass).async_remove_device(device.id)
+    device_registry = dr.async_get(hass)
+    device_registry.async_remove_device(device.id)
     return True
 
 
@@ -176,4 +223,4 @@ class EPAData:
     """EPA options for the integration."""
 
     coordinator: EPADataUpdateCoordinator
-    other_data: dict[str, Any]
+    other_data: EPAConfigEntry

@@ -82,6 +82,7 @@ class Collector:
         self.confidence: float = 0
         self.confidence_24h: float = 0
         self.data_source_1h: str = ""
+        self.observations_data: dict = {}
         self.pm25: float = 0
         self.pm25_24h: float = 0
         self.total_sample: float = 0
@@ -104,18 +105,19 @@ class Collector:
         async with aiohttp.ClientSession(headers=self.headers) as session:
             if self.latitude != 0 and self.longitude != 0:
                 url = f"{URL_BASE}{URL_FIND_SITE}[{self.latitude},{self.longitude}]"
-                response = await session.get(url)
+                response = await session.get(url, ssl=False)
 
                 if response is not None and response.status == 200:
                     self.location_data = await response.json()
                     try:
                         self.site_id = self.location_data[RECORDS][0][SITE_ID]
                         self.site_name = self.location_data[RECORDS][0][SITE_NAME]
-                        _LOGGER.debug("EPA Site ID Located: %s", self.site_id)
+                        _LOGGER.debug("EPA site %s (%s) located", self.site_name, self.site_id)
                         self.site_found = True
                     except KeyError:
-                        _LOGGER.debug(
-                            "Exception in get_location_data(): %s",
+                        _LOGGER.error(
+                            "Exception in get_location_data() for site %s: %s",
+                            self.site_id,
                             traceback.format_exc(),
                         )
                         self.site_found = False
@@ -125,7 +127,7 @@ class Collector:
         async with aiohttp.ClientSession(headers=self.headers) as session:
             if self.latitude != 0 and self.longitude != 0:
                 url = f"{URL_BASE}{URL_LIST_SITE}"
-                response = await session.get(url)
+                response = await session.get(url, ssl=False)
 
                 if response is not None and response.status == 200:
                     temp_loc_list = []
@@ -145,15 +147,10 @@ class Collector:
                                     SITE_TYPE_STANDARD,
                                 ):  # If it isn't a camera
                                     if (
-                                        record.get(SITE_HEALTH_ADVICES)[0] is not None
+                                        record.get(SITE_HEALTH_ADVICES) is not None and record.get(SITE_HEALTH_ADVICES)[0] is not None  # pyright: ignore[reportOptionalSubscript]
                                     ):  # Get Health Site Advices
-                                        siteHealthAdvices = record[SITE_HEALTH_ADVICES][
-                                            0
-                                        ]
-                                        if (
-                                            siteHealthAdvices.get(HEALTH_PARAMETER)
-                                            is not None
-                                        ):  # If site has a Health Parameter
+                                        siteHealthAdvices = record[SITE_HEALTH_ADVICES][0]
+                                        if siteHealthAdvices.get(HEALTH_PARAMETER) is not None:  # If site has a Health Parameter
                                             latitude = record[GEOMETRY][COORDINATES][0]
                                             longitude = record[GEOMETRY][COORDINATES][1]
                                             temp_loc_list.append(
@@ -166,19 +163,14 @@ class Collector:
                                                     ).meters,
                                                 }
                                             )
-                        sorted_locs = sorted(
-                            temp_loc_list, key=lambda itm: itm.get(DISTANCE)
-                        )
+                        sorted_locs = sorted(temp_loc_list, key=lambda itm: itm.get(DISTANCE))
                         self.locations_list: list[SelectOptionDict] = [
-                            SelectOptionDict(
-                                label=location[SITE_NAME], value=location[SITE_ID]
-                            )
-                            for location in sorted_locs
+                            SelectOptionDict(label=location[SITE_NAME], value=location[SITE_ID]) for location in sorted_locs
                         ]
-                        _LOGGER.debug("EPA Site List Loaded")
+                        _LOGGER.debug("EPA site list loaded: %s sites", len(self.locations_list))
                         self.sites_found = True
                     except KeyError:
-                        _LOGGER.debug(
+                        _LOGGER.error(
                             "Exception in get_locations_list(): %s",
                             traceback.format_exc(),
                         )
@@ -354,7 +346,7 @@ class Collector:
         """
         if self.site_found:
             return self.until
-        return 0
+        return ""
 
     def get_sensor(self, key: str):
         """Return A sensor.
@@ -391,21 +383,15 @@ class Collector:
                                 if self.confidence > 0 and self.total_sample > 0:
                                     self.aqi_pm25 = reading[HEALTH_ADVICE]
                                     self.pm25 = reading[AVERAGE_VALUE]
-                                    self.aqi = aqi.to_aqi(
-                                        [(aqi.POLLUTANT_PM25, self.pm25)]
-                                    )
-                                    self.data_source_1h = time_series_reading[
-                                        TIME_SERIES_NAME
-                                    ]
+                                    self.aqi = aqi.to_aqi([(aqi.POLLUTANT_PM25, self.pm25)])
+                                    self.data_source_1h = time_series_reading[TIME_SERIES_NAME]
                                 self.until = reading[UNTIL]
                             case "24HR_AV":
                                 self.confidence_24h = reading[CONFIDENCE]
                                 self.total_sample_24h = reading[TOTAL_SAMPLE]
                                 self.aqi_pm25_24h = reading[HEALTH_ADVICE]
                                 self.pm25_24h = reading[AVERAGE_VALUE]
-                                self.aqi_24h = aqi.to_aqi(
-                                    [(aqi.POLLUTANT_PM25, self.pm25_24h)]
-                                )
+                                self.aqi_24h = aqi.to_aqi([(aqi.POLLUTANT_PM25, self.pm25_24h)])
                                 if (
                                     self.confidence == 0
                                     and self.total_sample == 0
@@ -416,9 +402,7 @@ class Collector:
                                     self.aqi_pm25 = self.aqi_pm25_24h
                                     self.pm25 = self.pm25_24h
                                     self.aqi = self.aqi_24h
-                                    self.data_source_1h = time_series_reading[
-                                        TIME_SERIES_NAME
-                                    ]
+                                    self.data_source_1h = time_series_reading[TIME_SERIES_NAME]
 
             self.last_updated = dt.now()
             self.observation_data = {
@@ -444,16 +428,16 @@ class Collector:
                 if self.location_data is None:
                     await self.get_location_data()
 
-                async with session.get(
-                    URL_BASE + self.get_location() + URL_PARAMETERS
-                ) as resp:
+                _LOGGER.debug("Updating EPA %s observation data", self.site_name)
+                async with session.get(URL_BASE + self.get_location() + URL_PARAMETERS, ssl=False) as resp:
                     self.observations_data = await resp.json()
                     await self.extract_observation_data()
         except ConnectionRefusedError as e:
-            _LOGGER.error("Connection error in async_update, connection refused: %s", e)
+            _LOGGER.error("Connection error in async_update for site %s, connection refused: %s", self.site_name, e)
         except Exception:  # noqa: BLE001
-            _LOGGER.debug(
-                "Exception in async_update(): %s",
+            _LOGGER.error(
+                "Exception in async_update() for site %s: %s",
+                self.site_name,
                 traceback.format_exc(),
             )
 
@@ -466,7 +450,7 @@ class Collector:
         except ConnectionRefusedError as e:
             _LOGGER.error("Connection error in async_setup, connection refused: %s", e)
         except Exception:  # noqa: BLE001
-            _LOGGER.debug(
+            _LOGGER.error(
                 "Exception in async_setup(): %s",
                 traceback.format_exc(),
             )
