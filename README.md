@@ -5,7 +5,7 @@
 [![hacs_downloads](https://img.shields.io/github/downloads/BJReplay/EPA_AirQuality_HA/latest/total?style=for-the-badge)](https://github.com/BJReplay/EPA_AirQuality_HA/releases/latest)
 ![GitHub License](https://img.shields.io/github/license/BJReplay/EPA_AirQuality_HA?style=for-the-badge)
 ![GitHub commit activity](https://img.shields.io/github/commit-activity/y/BJReplay/EPA_AirQuality_HA?style=for-the-badge)
-![Maintenance](https://img.shields.io/maintenance/yes/2025?style=for-the-badge)
+![Maintenance](https://img.shields.io/maintenance/yes/2026?style=for-the-badge)
 
 [![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=BJReplay&repository=EPA_AirQuality_HA&category=integration)
 
@@ -39,10 +39,7 @@ Sometimes sensors go off line: example of Melbourne CBD Sensor when it goes offl
 
 Inspired by [@loryanstrant](https://github.com/loryanstrant) who published [this article](https://www.loryanstrant.com/2023/07/23/track-air-quality-with-home-assistant-and-epa-data/) that helped me track air quality in HA, and created the first repo for this project.
 
-Thanks to @autoSteve who provided much of the python knowledge and assistance over at [HA Solcast PV Solar Forecast Integration](https://github.com/BJReplay/ha-solcast-solar) and to @bremor and @Makin-Things who provided inspiration (and a model to steal for a cloud polling integration) with their fantastic [BoM integration](https://github.com/bremor/bureau_of_meteorology)
+Thanks to @autoSteve who provided much of the python knowledge and assistance over at [HA Solcast PV Solar Forecast Integration](https://github.com/BJReplay/ha-solcast-solar) and to @bremor and @Makin-Things who provided inspiration (and a model to steal for a cloud polling integration) with their fantastic [BoM integration](https://github.com/bremor/bureau_of_meteorology).
 
-I am considering whether future releases will support multiple installs so you can monitor multiple locations: currently the integration doesn't prevent multiple installs, but errors out on second and subsequent installs.
+@autoSteve has just dropped a major release that now supports multiple locations, so you can monitor more than one location.  It currently prompts for the API key for each location (but you can easily copy and paste from your first location by clicking on the configure gear for your already configured location, copying the API key, and using it to configure subsequent locations).
 
-Current release v0.4.5 allows selecting Air Quality monitoring station from a list sorted by distance from your Home Assistant location.
-
-If you change the location, subsequent list updates might be sorted based on distance from the currently selected location 🤣

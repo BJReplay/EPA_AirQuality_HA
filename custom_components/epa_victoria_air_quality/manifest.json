@@ -5,7 +5,8 @@
     "http"
   ],
   "codeowners": [
-    "@BJReplay"
+    "@BJReplay",
+    "@autoSteve"
   ],
   "config_flow": true,
   "dependencies": [
@@ -21,5 +22,5 @@
     "python-aqi>=0.6.1"
   ],
   "single_config_entry": false,
-  "version": "0.4.5"
+  "version": "0.4.6"
 }
