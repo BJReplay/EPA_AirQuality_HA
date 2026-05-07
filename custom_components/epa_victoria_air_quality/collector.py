@@ -78,7 +78,7 @@ class Collector:
         self.aqi: float = 0
         self.aqi_24h: float = 0
         self.aqi_pm25: str = ""
-        self.aqi_pm25_24h: str
+        self.aqi_pm25_24h: str = ""
         self.confidence: float = 0
         self.confidence_24h: float = 0
         self.data_source_1h: str = ""
@@ -383,7 +383,8 @@ class Collector:
                                 if self.confidence > 0 and self.total_sample > 0:
                                     self.aqi_pm25 = reading[HEALTH_ADVICE]
                                     self.pm25 = reading[AVERAGE_VALUE]
-                                    self.aqi = aqi.to_aqi([(aqi.POLLUTANT_PM25, self.pm25)])
+                                    if self.pm25 is not None:
+                                        self.aqi = aqi.to_aqi([(aqi.POLLUTANT_PM25, self.pm25)])
                                     self.data_source_1h = time_series_reading[TIME_SERIES_NAME]
                                 self.until = reading[UNTIL]
                             case "24HR_AV":
@@ -391,12 +392,14 @@ class Collector:
                                 self.total_sample_24h = reading[TOTAL_SAMPLE]
                                 self.aqi_pm25_24h = reading[HEALTH_ADVICE]
                                 self.pm25_24h = reading[AVERAGE_VALUE]
-                                self.aqi_24h = aqi.to_aqi([(aqi.POLLUTANT_PM25, self.pm25_24h)])
+                                if self.pm25_24h is not None:
+                                    self.aqi_24h = aqi.to_aqi([(aqi.POLLUTANT_PM25, self.pm25_24h)])
                                 if (
                                     self.confidence == 0
                                     and self.total_sample == 0
                                     and self.confidence_24h > 0
                                     and self.total_sample_24h > 0
+                                    and self.pm25_24h is not None
                                 ):
                                     # Update 1 Hour readings
                                     self.aqi_pm25 = self.aqi_pm25_24h
