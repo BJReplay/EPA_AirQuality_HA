@@ -335,7 +335,7 @@ async def test_user_flow_duplicate_location_rejected(hass: HomeAssistant) -> Non
         )
         assert result.get("type") == FlowResultType.FORM
         assert result.get("step_id") == "location"
-        assert result.get("errors", {}).get("base") == "already_configured_location"
+        assert result.get("errors", {}).get("base") == "already_configured_location"  # pyright: ignore[reportOptionalMemberAccess]
         # Confirm no API call was made for the duplicate
         mock_collector.async_update.assert_not_called()
 
@@ -343,7 +343,7 @@ async def test_user_flow_duplicate_location_rejected(hass: HomeAssistant) -> Non
 @pytest.mark.asyncio
 async def test_options_flow_duplicate_location_rejected(hass: HomeAssistant) -> None:
     """Options flow location step rejects a site already configured in a different entry."""
-    from . import DEFAULT_OPTIONS, TEST_SITE_ID_2, TEST_SITE_NAME_2
+    from . import DEFAULT_OPTIONS, TEST_SITE_ID_2, TEST_SITE_NAME_2  # noqa: PLC0415
 
     # Entry 1: site 10001 (the one being reconfigured)
     entry1 = create_mock_config_entry()
@@ -376,7 +376,7 @@ async def test_options_flow_duplicate_location_rejected(hass: HomeAssistant) -> 
         )
         assert result.get("type") == FlowResultType.FORM
         assert result.get("step_id") == "location"
-        assert result.get("errors", {}).get("base") == "already_configured_location"
+        assert result.get("errors", {}).get("base") == "already_configured_location"  # pyright: ignore[reportOptionalMemberAccess]
         mock_collector.async_update.assert_not_called()
 
 
@@ -398,7 +398,7 @@ async def test_options_flow_same_location_allowed(hass: HomeAssistant) -> None:
         result = await hass.config_entries.options.async_configure(result["flow_id"], user_input={CONF_API_KEY: TEST_API_KEY_1})
         assert result.get("step_id") == "location"
 
-        # Re-select the same site — must succeed
+        # Re-select the same site - must succeed
         result = await hass.config_entries.options.async_configure(
             result["flow_id"], user_input={CONF_API_KEY: TEST_API_KEY_1, CONF_SITE_ID: TEST_SITE_ID_1}
         )

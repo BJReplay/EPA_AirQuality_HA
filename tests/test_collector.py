@@ -381,6 +381,57 @@ async def test_extract_observation_data_1h_zero_confidence() -> None:
 
 
 @pytest.mark.asyncio
+async def test_extract_observation_data_24h_none_value() -> None:
+    """A missing 24HR_AV PM2.5 value does not raise and leaves AQI at its default."""
+    c = Collector(
+        api_key=TEST_API_KEY_1,
+        epa_site_id=TEST_SITE_ID_1,
+        latitude=TEST_LAT,
+        longitude=TEST_LON,
+    )
+    c.observations_data = {
+        "parameters": [
+            {
+                "timeSeriesReadings": [
+                    {
+                        "timeSeriesName": "1HR_AV",
+                        "readings": [
+                            {
+                                "averageValue": 5.0,
+                                "healthAdvice": "Good",
+                                "until": "2024-01-01T12:00:00",
+                                "confidence": 0.95,
+                                "totalSample": 12.0,
+                            }
+                        ],
+                    },
+                    {
+                        "timeSeriesName": "24HR_AV",
+                        "readings": [
+                            {
+                                "averageValue": None,
+                                "healthAdvice": "Unknown",
+                                "until": "2024-01-01T12:00:00",
+                                "confidence": 0.98,
+                                "totalSample": 288.0,
+                            }
+                        ],
+                    },
+                ]
+            }
+        ]
+    }
+
+    await c.extract_observation_data()
+
+    assert c.pm25 == 5.0
+    assert c.aqi > 0
+    assert c.pm25_24h is None
+    assert c.aqi_24h == 0
+    assert c.data_source_1h == "1HR_AV"
+
+
+@pytest.mark.asyncio
 async def test_extract_observation_data_no_parameters() -> None:
     """Empty observations_data leaves observation_data dict empty."""
     c = Collector(
@@ -441,8 +492,8 @@ async def test_async_update_location_data_none() -> None:
     c.location_data = None  # pyright: ignore[reportAttributeAccessIssue] # Force the inner get_location_data() branch
 
     # Session call order inside async_update:
-    #   1st ClientSession() – outer session used for the parameters GET
-    #   2nd ClientSession() – created inside get_location_data() for the find-site GET
+    #   1st ClientSession() - outer session used for the parameters GET
+    #   2nd ClientSession() - created inside get_location_data() for the find-site GET
     with mock_sessions(
         [MockResponse(params_payload)],  # outer session responses
         [MockResponse(location_payload)],  # get_location_data session responses

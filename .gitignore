@@ -1,6 +1,7 @@
 .vscode
 .vscode/settings.json
 .vs
+.DS_Store
 **/__pycache__/**
 
 # Added to exclude files that exist because of Dev Container Development Environment

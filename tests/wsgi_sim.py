@@ -248,7 +248,7 @@ def get_sites() -> tuple[Any, int]:
 
     Query parameters:
         environmentalSegment: must be "air"
-        location: optional, format "[lat,lon]" — returns nearest site(s)
+        location: optional, format "[lat,lon]" - returns nearest site(s)
     """
     api_key = _extract_api_key()
     response_code, issue = validate_call(api_key, counter=False)
