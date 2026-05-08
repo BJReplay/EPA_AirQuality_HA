@@ -43,3 +43,14 @@ Thanks to @autoSteve who provided much of the python knowledge and assistance ov
 
 @autoSteve has just dropped a major release that now supports multiple locations, so you can monitor more than one location.  It currently prompts for the API key for each location (but you can easily copy and paste from your first location by clicking on the configure gear for your already configured location, copying the API key, and using it to configure subsequent locations).
 
+This allows for templates such as the following simple example that uses the base (first sensor defined) and casts it to a float with a default value of the Brighton sensor - which, if it doesn't have a value, uses the Spotswood sensor
+
+``` yaml
+  states('sensor.epa_air_quality_hourly_aqi') 
+         | float ( states('sensor.epa_air_quality_brighton_epa_air_quality_hourly_aqi') 
+                 | float ( states('sensor.epa_air_quality_spotswood_epa_air_quality_hourly_aqi') 
+                 )
+            )
+```
+
+Another example is shown in discussion https://github.com/BJReplay/EPA_AirQuality_HA/discussions/15
