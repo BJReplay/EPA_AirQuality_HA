@@ -1,8 +1,7 @@
 """Tests for the EPA Victoria Air Quality collector."""
 
-import contextlib
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -69,28 +68,16 @@ class MockClientSession:
         """Exit the async context manager."""
 
 
-@contextlib.contextmanager
-def mock_sessions(*session_response_lists: list[MockResponse]):
-    """Return mock sessions."""
-    sessions = [MockClientSession(list(r)) for r in session_response_lists]
-    call_idx = [0]
+class ErrorClientSession:
+    """Mock session whose get() raises a given exception."""
 
-    def factory(*args: Any, **kwargs: Any) -> MockClientSession:
-        idx = call_idx[0]
-        result = sessions[min(idx, len(sessions) - 1)]
-        call_idx[0] += 1
-        return result
+    def __init__(self, exc: Exception) -> None:
+        """Initialise with the exception to raise."""
+        self._exc = exc
 
-    with patch(
-        "homeassistant.components.epa_victoria_air_quality.collector.aiohttp.ClientSession",
-        side_effect=factory,
-    ):
-        yield
-
-
-def mock_session(*responses: MockResponse):
-    """Single session returning the given responses."""
-    return mock_sessions(list(responses))
+    def get(self, url: str, **kwargs: Any) -> None:
+        """Raise the configured exception."""
+        raise self._exc
 
 
 def test_collector_init_no_site_id() -> None:
@@ -120,9 +107,8 @@ def test_collector_init_with_site_id() -> None:
 async def test_get_location_data_success() -> None:
     """Successful response sets site_id, site_name and site_found."""
     payload = SIM.get_sites_by_location(TEST_LAT, TEST_LON)
-    c = Collector(api_key=TEST_API_KEY_1, latitude=TEST_LAT, longitude=TEST_LON)
-    with mock_session(MockResponse(payload)):
-        await c.get_location_data()
+    c = Collector(api_key=TEST_API_KEY_1, latitude=TEST_LAT, longitude=TEST_LON, session=MockClientSession([MockResponse(payload)]))
+    await c.get_location_data()
     assert c.site_found is True
     assert c.site_id != ""
     assert c.site_name != ""
@@ -131,19 +117,17 @@ async def test_get_location_data_success() -> None:
 @pytest.mark.asyncio
 async def test_get_location_data_key_error() -> None:
     """Missing keys in response."""
-    c = Collector(api_key=TEST_API_KEY_1, latitude=TEST_LAT, longitude=TEST_LON)
     # Record is missing siteID and siteName, KeyError during processing
-    with mock_session(MockResponse({"records": [{}]})):
-        await c.get_location_data()
+    c = Collector(api_key=TEST_API_KEY_1, latitude=TEST_LAT, longitude=TEST_LON, session=MockClientSession([MockResponse({"records": [{}]})]))
+    await c.get_location_data()
     assert c.site_found is False
 
 
 @pytest.mark.asyncio
 async def test_get_location_data_non_200() -> None:
     """A non-200 response leaves site_found unchanged."""
-    c = Collector(api_key=TEST_API_KEY_1, latitude=TEST_LAT, longitude=TEST_LON)
-    with mock_session(MockResponse({}, status=403)):
-        await c.get_location_data()
+    c = Collector(api_key=TEST_API_KEY_1, latitude=TEST_LAT, longitude=TEST_LON, session=MockClientSession([MockResponse({}, status=403)]))
+    await c.get_location_data()
     assert c.site_found is False
     assert c.site_id == ""
 
@@ -152,8 +136,7 @@ async def test_get_location_data_non_200() -> None:
 async def test_get_location_data_zero_coords() -> None:
     """With coordinates (0,0) the request is skipped entirely."""
     c = Collector(api_key=TEST_API_KEY_1, latitude=0, longitude=0)
-    with mock_session(MockResponse({})):
-        await c.get_location_data()
+    await c.get_location_data()
     assert c.site_found is False
 
 
@@ -161,9 +144,8 @@ async def test_get_location_data_zero_coords() -> None:
 async def test_get_locations_list_success() -> None:
     """Successful response populates locations_list and sets sites_found=True."""
     payload = SIM.get_sites_list()
-    c = Collector(api_key=TEST_API_KEY_1, latitude=TEST_LAT, longitude=TEST_LON)
-    with mock_session(MockResponse(payload)):
-        await c.get_locations_list()
+    c = Collector(api_key=TEST_API_KEY_1, latitude=TEST_LAT, longitude=TEST_LON, session=MockClientSession([MockResponse(payload)]))
+    await c.get_locations_list()
     assert c.sites_found is True
     assert len(c.locations_list) > 0
     site_ids = [loc["value"] for loc in c.locations_list]
@@ -173,9 +155,8 @@ async def test_get_locations_list_success() -> None:
 @pytest.mark.asyncio
 async def test_get_locations_list_records_none() -> None:
     """A response with records=None still sets sites_found=True but leaves the list empty."""
-    c = Collector(api_key=TEST_API_KEY_1, latitude=TEST_LAT, longitude=TEST_LON)
-    with mock_session(MockResponse({"records": None})):
-        await c.get_locations_list()
+    c = Collector(api_key=TEST_API_KEY_1, latitude=TEST_LAT, longitude=TEST_LON, session=MockClientSession([MockResponse({"records": None})]))
+    await c.get_locations_list()
     # sites_found is set to True after the sorted-list assignment even when records is None
     assert c.sites_found is True
     assert c.locations_list == []
@@ -184,19 +165,17 @@ async def test_get_locations_list_records_none() -> None:
 @pytest.mark.asyncio
 async def test_get_locations_list_key_error() -> None:
     """A record missing required keys triggers KeyError handling and sites_found=False."""
-    c = Collector(api_key=TEST_API_KEY_1, latitude=TEST_LAT, longitude=TEST_LON)
     # Missing siteType etc. = KeyError during processing
-    with mock_session(MockResponse({"records": [{"siteID": "X"}]})):
-        await c.get_locations_list()
+    c = Collector(api_key=TEST_API_KEY_1, latitude=TEST_LAT, longitude=TEST_LON, session=MockClientSession([MockResponse({"records": [{"siteID": "X"}]})]))
+    await c.get_locations_list()
     assert c.sites_found is False
 
 
 @pytest.mark.asyncio
 async def test_get_locations_list_non_200() -> None:
     """A non-200 response leaves sites_found=False."""
-    c = Collector(api_key=TEST_API_KEY_1, latitude=TEST_LAT, longitude=TEST_LON)
-    with mock_session(MockResponse({}, status=403)):
-        await c.get_locations_list()
+    c = Collector(api_key=TEST_API_KEY_1, latitude=TEST_LAT, longitude=TEST_LON, session=MockClientSession([MockResponse({}, status=403)]))
+    await c.get_locations_list()
     assert c.sites_found is False
 
 
@@ -204,8 +183,7 @@ async def test_get_locations_list_non_200() -> None:
 async def test_get_locations_list_zero_coords() -> None:
     """With coordinates (0,0) the request is skipped entirely."""
     c = Collector(api_key=TEST_API_KEY_1, latitude=0, longitude=0)
-    with mock_session(MockResponse({})):
-        await c.get_locations_list()
+    await c.get_locations_list()
     assert c.sites_found is False
 
 
@@ -223,9 +201,8 @@ async def test_get_locations_list_site_without_health_parameter() -> None:
             }
         ]
     }
-    c = Collector(api_key=TEST_API_KEY_1, latitude=TEST_LAT, longitude=TEST_LON)
-    with mock_session(MockResponse(payload)):
-        await c.get_locations_list()
+    c = Collector(api_key=TEST_API_KEY_1, latitude=TEST_LAT, longitude=TEST_LON, session=MockClientSession([MockResponse(payload)]))
+    await c.get_locations_list()
     assert c.sites_found is True
     assert len(c.locations_list) == 0  # Site excluded but no error
 
@@ -471,9 +448,9 @@ async def test_async_update_success() -> None:
         epa_site_id=TEST_SITE_ID_1,
         latitude=TEST_LAT,
         longitude=TEST_LON,
+        session=MockClientSession([MockResponse(params)]),
     )
-    with mock_session(MockResponse(params)):
-        await c.async_update()
+    await c.async_update()
     assert c.aqi > 0
 
 
@@ -488,17 +465,11 @@ async def test_async_update_location_data_none() -> None:
         epa_site_id=TEST_SITE_ID_1,
         latitude=TEST_LAT,
         longitude=TEST_LON,
+        # Both calls share the same session; location lookup is first, then parameters.
+        session=MockClientSession([MockResponse(location_payload), MockResponse(params_payload)]),
     )
     c.location_data = None  # pyright: ignore[reportAttributeAccessIssue] # Force the inner get_location_data() branch
-
-    # Session call order inside async_update:
-    #   1st ClientSession() - outer session used for the parameters GET
-    #   2nd ClientSession() - created inside get_location_data() for the find-site GET
-    with mock_sessions(
-        [MockResponse(params_payload)],  # outer session responses
-        [MockResponse(location_payload)],  # get_location_data session responses
-    ):
-        await c.async_update()
+    await c.async_update()
 
     assert c.observations_data != {}
 
@@ -511,12 +482,9 @@ async def test_async_update_connection_refused() -> None:
         epa_site_id=TEST_SITE_ID_1,
         latitude=TEST_LAT,
         longitude=TEST_LON,
+        session=ErrorClientSession(ConnectionRefusedError("refused")),
     )
-    with patch(
-        "homeassistant.components.epa_victoria_air_quality.collector.aiohttp.ClientSession",
-        side_effect=ConnectionRefusedError("refused"),
-    ):
-        await c.async_update()  # Must not raise
+    await c.async_update()  # Must not raise
 
 
 @pytest.mark.asyncio
@@ -527,51 +495,39 @@ async def test_async_update_exception() -> None:
         epa_site_id=TEST_SITE_ID_1,
         latitude=TEST_LAT,
         longitude=TEST_LON,
+        session=ErrorClientSession(RuntimeError("unexpected")),
     )
-    with patch(
-        "homeassistant.components.epa_victoria_air_quality.collector.aiohttp.ClientSession",
-        side_effect=RuntimeError("unexpected"),
-    ):
-        await c.async_update()  # Must not raise
+    await c.async_update()  # Must not raise
 
 
 @pytest.mark.asyncio
 async def test_async_setup_calls_get_locations_list() -> None:
     """async_setup calls get_locations_list when the list is empty."""
     payload = SIM.get_sites_list()
-    c = Collector(api_key=TEST_API_KEY_1, latitude=TEST_LAT, longitude=TEST_LON)
-    with mock_session(MockResponse(payload)):
-        await c.async_setup()
+    c = Collector(api_key=TEST_API_KEY_1, latitude=TEST_LAT, longitude=TEST_LON, session=MockClientSession([MockResponse(payload)]))
+    await c.async_setup()
     assert c.sites_found is True
 
 
 @pytest.mark.asyncio
 async def test_async_setup_skips_when_already_populated() -> None:
     """async_setup does not fetch again when locations_list is already populated."""
-    c = Collector(api_key=TEST_API_KEY_1, latitude=TEST_LAT, longitude=TEST_LON)
+    session = MagicMock()
+    c = Collector(api_key=TEST_API_KEY_1, latitude=TEST_LAT, longitude=TEST_LON, session=session)
     c.locations_list = [{"value": TEST_SITE_ID_1, "label": "Melbourne CBD"}]
-    with patch("homeassistant.components.epa_victoria_air_quality.collector.aiohttp.ClientSession") as mock_cls:
-        await c.async_setup()
-    mock_cls.assert_not_called()
+    await c.async_setup()
+    session.get.assert_not_called()
 
 
 @pytest.mark.asyncio
 async def test_async_setup_connection_refused() -> None:
     """ConnectionRefusedError inside async_setup is logged and swallowed."""
-    c = Collector(api_key=TEST_API_KEY_1, latitude=TEST_LAT, longitude=TEST_LON)
-    with patch(
-        "homeassistant.components.epa_victoria_air_quality.collector.aiohttp.ClientSession",
-        side_effect=ConnectionRefusedError("refused"),
-    ):
-        await c.async_setup()  # Must not raise
+    c = Collector(api_key=TEST_API_KEY_1, latitude=TEST_LAT, longitude=TEST_LON, session=ErrorClientSession(ConnectionRefusedError("refused")))
+    await c.async_setup()  # Must not raise
 
 
 @pytest.mark.asyncio
 async def test_async_setup_exception() -> None:
     """Unexpected exception inside async_setup is logged and swallowed."""
-    c = Collector(api_key=TEST_API_KEY_1, latitude=TEST_LAT, longitude=TEST_LON)
-    with patch(
-        "homeassistant.components.epa_victoria_air_quality.collector.aiohttp.ClientSession",
-        side_effect=RuntimeError("unexpected"),
-    ):
-        await c.async_setup()  # Must not raise
+    c = Collector(api_key=TEST_API_KEY_1, latitude=TEST_LAT, longitude=TEST_LON, session=ErrorClientSession(RuntimeError("unexpected")))
+    await c.async_setup()  # Must not raise
