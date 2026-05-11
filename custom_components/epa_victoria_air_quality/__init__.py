@@ -10,6 +10,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_API_KEY, CONF_LATITUDE, CONF_LONGITUDE, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers import device_registry as dr
 
 from .collector import Collector
@@ -93,6 +94,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: EPAConfigEntry) -> bool:
         epa_site_id=options.get(CONF_SITE_ID, ""),
         latitude=options.get(CONF_LATITUDE, 0),
         longitude=options.get(CONF_LONGITUDE, 0),
+        session=async_get_clientsession(hass),
     )
     collector.site_name = options.get(CONF_SITE_NAME, "")
     coordinator: EPADataUpdateCoordinator = EPADataUpdateCoordinator(hass=hass, collector=collector, version=ua_version)

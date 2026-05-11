@@ -16,6 +16,7 @@ from homeassistant.config_entries import (
 )
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import callback
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
     SelectOptionDict,
     SelectSelector,
@@ -76,6 +77,7 @@ class EPAVicConfigFlow(ConfigFlow, domain=DOMAIN):
                     api_key=user_input[CONF_API_KEY],
                     latitude=self.hass.config.latitude,
                     longitude=self.hass.config.longitude,
+                    session=async_get_clientsession(self.hass),
                 )
 
                 # Save the user input into self.data so it's retained
@@ -144,6 +146,7 @@ class EPAVicConfigFlow(ConfigFlow, domain=DOMAIN):
                     latitude=self.hass.config.latitude,
                     longitude=self.hass.config.longitude,
                     epa_site_id=site_id,
+                    session=async_get_clientsession(self.hass),
                 )
                 self.collector.site_name = location_label
 
@@ -221,6 +224,7 @@ class EPAVicOptionFlowHandler(OptionsFlow):
             api_key=api_key,
             latitude=self.hass.config.latitude,
             longitude=self.hass.config.longitude,
+            session=async_get_clientsession(self.hass),
         )
         await collector.async_setup()
         if not collector.valid_location_list():
