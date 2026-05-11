@@ -107,7 +107,7 @@ def test_collector_init_with_site_id() -> None:
 async def test_get_location_data_success() -> None:
     """Successful response sets site_id, site_name and site_found."""
     payload = SIM.get_sites_by_location(TEST_LAT, TEST_LON)
-    c = Collector(api_key=TEST_API_KEY_1, latitude=TEST_LAT, longitude=TEST_LON, session=MockClientSession([MockResponse(payload)]))
+    c = Collector(api_key=TEST_API_KEY_1, latitude=TEST_LAT, longitude=TEST_LON, session=MockClientSession([MockResponse(payload)]))  # pyright: ignore[reportArgumentType]
     await c.get_location_data()
     assert c.site_found is True
     assert c.site_id != ""
@@ -118,7 +118,12 @@ async def test_get_location_data_success() -> None:
 async def test_get_location_data_key_error() -> None:
     """Missing keys in response."""
     # Record is missing siteID and siteName, KeyError during processing
-    c = Collector(api_key=TEST_API_KEY_1, latitude=TEST_LAT, longitude=TEST_LON, session=MockClientSession([MockResponse({"records": [{}]})]))
+    c = Collector(
+        api_key=TEST_API_KEY_1,
+        latitude=TEST_LAT,
+        longitude=TEST_LON,
+        session=MockClientSession([MockResponse({"records": [{}]})]),  # pyright: ignore[reportArgumentType]
+    )
     await c.get_location_data()
     assert c.site_found is False
 
@@ -126,7 +131,7 @@ async def test_get_location_data_key_error() -> None:
 @pytest.mark.asyncio
 async def test_get_location_data_non_200() -> None:
     """A non-200 response leaves site_found unchanged."""
-    c = Collector(api_key=TEST_API_KEY_1, latitude=TEST_LAT, longitude=TEST_LON, session=MockClientSession([MockResponse({}, status=403)]))
+    c = Collector(api_key=TEST_API_KEY_1, latitude=TEST_LAT, longitude=TEST_LON, session=MockClientSession([MockResponse({}, status=403)]))  # pyright: ignore[reportArgumentType]
     await c.get_location_data()
     assert c.site_found is False
     assert c.site_id == ""
@@ -144,7 +149,7 @@ async def test_get_location_data_zero_coords() -> None:
 async def test_get_locations_list_success() -> None:
     """Successful response populates locations_list and sets sites_found=True."""
     payload = SIM.get_sites_list()
-    c = Collector(api_key=TEST_API_KEY_1, latitude=TEST_LAT, longitude=TEST_LON, session=MockClientSession([MockResponse(payload)]))
+    c = Collector(api_key=TEST_API_KEY_1, latitude=TEST_LAT, longitude=TEST_LON, session=MockClientSession([MockResponse(payload)]))  # pyright: ignore[reportArgumentType]
     await c.get_locations_list()
     assert c.sites_found is True
     assert len(c.locations_list) > 0
@@ -155,7 +160,12 @@ async def test_get_locations_list_success() -> None:
 @pytest.mark.asyncio
 async def test_get_locations_list_records_none() -> None:
     """A response with records=None still sets sites_found=True but leaves the list empty."""
-    c = Collector(api_key=TEST_API_KEY_1, latitude=TEST_LAT, longitude=TEST_LON, session=MockClientSession([MockResponse({"records": None})]))
+    c = Collector(
+        api_key=TEST_API_KEY_1,
+        latitude=TEST_LAT,
+        longitude=TEST_LON,
+        session=MockClientSession([MockResponse({"records": None})]),  # pyright: ignore[reportArgumentType]
+    )
     await c.get_locations_list()
     # sites_found is set to True after the sorted-list assignment even when records is None
     assert c.sites_found is True
@@ -166,7 +176,12 @@ async def test_get_locations_list_records_none() -> None:
 async def test_get_locations_list_key_error() -> None:
     """A record missing required keys triggers KeyError handling and sites_found=False."""
     # Missing siteType etc. = KeyError during processing
-    c = Collector(api_key=TEST_API_KEY_1, latitude=TEST_LAT, longitude=TEST_LON, session=MockClientSession([MockResponse({"records": [{"siteID": "X"}]})]))
+    c = Collector(
+        api_key=TEST_API_KEY_1,
+        latitude=TEST_LAT,
+        longitude=TEST_LON,
+        session=MockClientSession([MockResponse({"records": [{"siteID": "X"}]})]),  # pyright: ignore[reportArgumentType]
+    )
     await c.get_locations_list()
     assert c.sites_found is False
 
@@ -174,7 +189,7 @@ async def test_get_locations_list_key_error() -> None:
 @pytest.mark.asyncio
 async def test_get_locations_list_non_200() -> None:
     """A non-200 response leaves sites_found=False."""
-    c = Collector(api_key=TEST_API_KEY_1, latitude=TEST_LAT, longitude=TEST_LON, session=MockClientSession([MockResponse({}, status=403)]))
+    c = Collector(api_key=TEST_API_KEY_1, latitude=TEST_LAT, longitude=TEST_LON, session=MockClientSession([MockResponse({}, status=403)]))  # pyright: ignore[reportArgumentType]
     await c.get_locations_list()
     assert c.sites_found is False
 
@@ -201,7 +216,7 @@ async def test_get_locations_list_site_without_health_parameter() -> None:
             }
         ]
     }
-    c = Collector(api_key=TEST_API_KEY_1, latitude=TEST_LAT, longitude=TEST_LON, session=MockClientSession([MockResponse(payload)]))
+    c = Collector(api_key=TEST_API_KEY_1, latitude=TEST_LAT, longitude=TEST_LON, session=MockClientSession([MockResponse(payload)]))  # pyright: ignore[reportArgumentType]
     await c.get_locations_list()
     assert c.sites_found is True
     assert len(c.locations_list) == 0  # Site excluded but no error
@@ -448,7 +463,7 @@ async def test_async_update_success() -> None:
         epa_site_id=TEST_SITE_ID_1,
         latitude=TEST_LAT,
         longitude=TEST_LON,
-        session=MockClientSession([MockResponse(params)]),
+        session=MockClientSession([MockResponse(params)]),  # pyright: ignore[reportArgumentType]
     )
     await c.async_update()
     assert c.aqi > 0
@@ -466,7 +481,7 @@ async def test_async_update_location_data_none() -> None:
         latitude=TEST_LAT,
         longitude=TEST_LON,
         # Both calls share the same session; location lookup is first, then parameters.
-        session=MockClientSession([MockResponse(location_payload), MockResponse(params_payload)]),
+        session=MockClientSession([MockResponse(location_payload), MockResponse(params_payload)]),  # pyright: ignore[reportArgumentType]
     )
     c.location_data = None  # pyright: ignore[reportAttributeAccessIssue] # Force the inner get_location_data() branch
     await c.async_update()
@@ -482,7 +497,7 @@ async def test_async_update_connection_refused() -> None:
         epa_site_id=TEST_SITE_ID_1,
         latitude=TEST_LAT,
         longitude=TEST_LON,
-        session=ErrorClientSession(ConnectionRefusedError("refused")),
+        session=ErrorClientSession(ConnectionRefusedError("refused")),  # pyright: ignore[reportArgumentType]
     )
     await c.async_update()  # Must not raise
 
@@ -495,7 +510,7 @@ async def test_async_update_exception() -> None:
         epa_site_id=TEST_SITE_ID_1,
         latitude=TEST_LAT,
         longitude=TEST_LON,
-        session=ErrorClientSession(RuntimeError("unexpected")),
+        session=ErrorClientSession(RuntimeError("unexpected")),  # pyright: ignore[reportArgumentType]
     )
     await c.async_update()  # Must not raise
 
@@ -504,7 +519,7 @@ async def test_async_update_exception() -> None:
 async def test_async_setup_calls_get_locations_list() -> None:
     """async_setup calls get_locations_list when the list is empty."""
     payload = SIM.get_sites_list()
-    c = Collector(api_key=TEST_API_KEY_1, latitude=TEST_LAT, longitude=TEST_LON, session=MockClientSession([MockResponse(payload)]))
+    c = Collector(api_key=TEST_API_KEY_1, latitude=TEST_LAT, longitude=TEST_LON, session=MockClientSession([MockResponse(payload)]))  # pyright: ignore[reportArgumentType]
     await c.async_setup()
     assert c.sites_found is True
 
@@ -522,12 +537,17 @@ async def test_async_setup_skips_when_already_populated() -> None:
 @pytest.mark.asyncio
 async def test_async_setup_connection_refused() -> None:
     """ConnectionRefusedError inside async_setup is logged and swallowed."""
-    c = Collector(api_key=TEST_API_KEY_1, latitude=TEST_LAT, longitude=TEST_LON, session=ErrorClientSession(ConnectionRefusedError("refused")))
+    c = Collector(
+        api_key=TEST_API_KEY_1,
+        latitude=TEST_LAT,
+        longitude=TEST_LON,
+        session=ErrorClientSession(ConnectionRefusedError("refused")),  # pyright: ignore[reportArgumentType]
+    )
     await c.async_setup()  # Must not raise
 
 
 @pytest.mark.asyncio
 async def test_async_setup_exception() -> None:
     """Unexpected exception inside async_setup is logged and swallowed."""
-    c = Collector(api_key=TEST_API_KEY_1, latitude=TEST_LAT, longitude=TEST_LON, session=ErrorClientSession(RuntimeError("unexpected")))
+    c = Collector(api_key=TEST_API_KEY_1, latitude=TEST_LAT, longitude=TEST_LON, session=ErrorClientSession(RuntimeError("unexpected")))  # pyright: ignore[reportArgumentType]
     await c.async_setup()  # Must not raise
