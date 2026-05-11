@@ -207,7 +207,7 @@ class EPAVicOptionFlowHandler(OptionsFlow):
     """Handle options."""
 
     def __init__(self, config_entry: ConfigEntry) -> None:
-        """Initialize options flow."""
+        """Initialise options flow."""
         self._entry: ConfigEntry = config_entry
         self._options = dict(config_entry.options)
         self._collector: Collector | None = None
