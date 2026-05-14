@@ -92,6 +92,7 @@ class Collector:
         self.last_updated: dt = dt.fromtimestamp(0)
         self.site_found: bool = False
         self.sites_found: bool = False
+        self._unavailable_logged: bool = False
         self.headers: dict = {
             "Accept": "application/json",
             "User-Agent": "ha-epa-integration/" + self.version_string,
@@ -424,6 +425,17 @@ class Collector:
                 ATTR_TOTAL_SAMPLE_24H: self.total_sample_24h,
                 UNTIL: self.until,
             }
+            data_valid = self.pm25_24h is not None or (self.confidence > 0 and self.total_sample > 0)
+            if data_valid:
+                if self._unavailable_logged:
+                    _LOGGER.info("EPA %s data is available again", self.site_name)
+                    self._unavailable_logged = False
+            elif not self._unavailable_logged:
+                _LOGGER.warning("EPA %s returned observation data but no valid readings", self.site_name)
+                self._unavailable_logged = True
+        elif not self._unavailable_logged:
+            _LOGGER.warning("EPA %s returned no observation data", self.site_name)
+            self._unavailable_logged = True
 
     @Throttle(datetime.timedelta(minutes=5))
     async def async_update(self):
@@ -439,13 +451,17 @@ class Collector:
                     self.observations_data = await resp.json()
                     await self.extract_observation_data()
         except ConnectionRefusedError as e:
-            _LOGGER.error("Connection error in async_update for site %s, connection refused: %s", self.site_name, e)
+            if not self._unavailable_logged:
+                _LOGGER.warning("Connection error in async_update for site %s, connection refused: %s", self.site_name, e)
+                self._unavailable_logged = True
         except Exception:  # noqa: BLE001
-            _LOGGER.error(
-                "Exception in async_update() for site %s: %s",
-                self.site_name,
-                traceback.format_exc(),
-            )
+            if not self._unavailable_logged:
+                _LOGGER.warning(
+                    "Exception in async_update() for site %s: %s",
+                    self.site_name,
+                    traceback.format_exc(),
+                )
+                self._unavailable_logged = True
 
     async def async_setup(self):
         """Set up the location list for the collector object."""

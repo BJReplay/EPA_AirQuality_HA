@@ -424,8 +424,83 @@ async def test_extract_observation_data_24h_none_value() -> None:
 
 
 @pytest.mark.asyncio
+async def test_extract_observation_data_no_valid_readings_logs_warning(caplog: pytest.LogCaptureFixture) -> None:
+    """When PARAMETERS present but pm25_24h is None and confidence is zero, a warning is logged once."""
+    null_readings = {
+        "parameters": [
+            {
+                "timeSeriesReadings": [
+                    {
+                        "timeSeriesName": "1HR_AV",
+                        "readings": [
+                            {
+                                "averageValue": None,
+                                "healthAdvice": "Unknown",
+                                "until": "2024-01-01T12:00:00",
+                                "confidence": 0,
+                                "totalSample": 0,
+                            }
+                        ],
+                    },
+                    {
+                        "timeSeriesName": "24HR_AV",
+                        "readings": [
+                            {
+                                "averageValue": None,
+                                "healthAdvice": "Unknown",
+                                "until": "2024-01-01T12:00:00",
+                                "confidence": 0,
+                                "totalSample": 0,
+                            }
+                        ],
+                    },
+                ]
+            }
+        ]
+    }
+    c = Collector(
+        api_key=TEST_API_KEY_1,
+        epa_site_id=TEST_SITE_ID_1,
+        latitude=TEST_LAT,
+        longitude=TEST_LON,
+    )
+    c.site_name = "Test Site"
+
+    # First call: warning logged and flag set
+    c.observations_data = null_readings
+    await c.extract_observation_data()
+    assert c._unavailable_logged is True
+    assert "no valid readings" in caplog.text
+
+    caplog.clear()
+
+    # Second call: flag already set, no duplicate warning
+    c.observations_data = null_readings
+    await c.extract_observation_data()
+    assert "no valid readings" not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_extract_observation_data_recovery_logs_info(caplog: pytest.LogCaptureFixture) -> None:
+    """After a no-valid-readings warning, a successful parse logs a recovery message."""
+    c = Collector(
+        api_key=TEST_API_KEY_1,
+        epa_site_id=TEST_SITE_ID_1,
+        latitude=TEST_LAT,
+        longitude=TEST_LON,
+    )
+    c.site_name = "Test Site"
+    c._unavailable_logged = True  # Simulate a prior warning having been logged
+
+    c.observations_data = SIM.get_site_parameters(TEST_SITE_ID_1)  # pyright: ignore[reportAttributeAccessIssue]
+    await c.extract_observation_data()
+
+    assert c._unavailable_logged is False
+    assert "available again" in caplog.text
+
+
+@pytest.mark.asyncio
 async def test_extract_observation_data_no_parameters() -> None:
-    """Empty observations_data leaves observation_data dict empty."""
     c = Collector(
         api_key=TEST_API_KEY_1,
         epa_site_id=TEST_SITE_ID_1,
