@@ -410,23 +410,23 @@ class Collector:
                                     self.aqi = self.aqi_24h
                                     self.data_source_1h = time_series_reading[TIME_SERIES_NAME]
 
-            self.last_updated = dt.now()
-            self.observation_data = {
-                TYPE_AQI: self.aqi,
-                TYPE_AQI_24H: self.aqi_24h,
-                TYPE_AQI_PM25: self.aqi_pm25,
-                TYPE_AQI_PM25_24H: self.aqi_pm25_24h,
-                TYPE_PM25: self.pm25,
-                TYPE_PM25_24H: self.pm25_24h,
-                ATTR_CONFIDENCE: self.confidence,
-                ATTR_CONFIDENCE_24H: self.confidence_24h,
-                ATTR_DATA_SOURCE: self.data_source_1h,
-                ATTR_TOTAL_SAMPLE: self.total_sample,
-                ATTR_TOTAL_SAMPLE_24H: self.total_sample_24h,
-                UNTIL: self.until,
-            }
             data_valid = self.pm25_24h is not None or (self.confidence > 0 and self.total_sample > 0)
             if data_valid:
+                self.last_updated = dt.now()
+                self.observation_data = {
+                    TYPE_AQI: self.aqi if self.pm25 is not None else None,
+                    TYPE_AQI_24H: self.aqi_24h if self.pm25_24h is not None else None,
+                    TYPE_AQI_PM25: self.aqi_pm25,
+                    TYPE_AQI_PM25_24H: self.aqi_pm25_24h,
+                    TYPE_PM25: self.pm25,
+                    TYPE_PM25_24H: self.pm25_24h,
+                    ATTR_CONFIDENCE: self.confidence,
+                    ATTR_CONFIDENCE_24H: self.confidence_24h,
+                    ATTR_DATA_SOURCE: self.data_source_1h,
+                    ATTR_TOTAL_SAMPLE: self.total_sample,
+                    ATTR_TOTAL_SAMPLE_24H: self.total_sample_24h,
+                    UNTIL: self.until,
+                }
                 if self._unavailable_logged:
                     _LOGGER.info("EPA %s data is available again", self.site_name)
                     self._unavailable_logged = False
