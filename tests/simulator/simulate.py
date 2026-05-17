@@ -23,11 +23,9 @@ from zoneinfo import ZoneInfo
 API_KEY_SITES: dict[str, dict[str, Any]] = {
     "test-key-1": {
         "sites": ["10001", "10002", "10003"],
-        "counter": 0,
     },
     "test-key-2": {
         "sites": ["10001"],
-        "counter": 0,
     },
 }
 
@@ -262,6 +260,10 @@ class SimulatedEPA:
         if site_id not in SITES:
             return None
         return self._make_parameters(site_id)
+
+    def valid_api_keys(self) -> list[str]:
+        """Return all valid API keys."""
+        return list(API_KEY_SITES.keys())
 
     def validate_api_key(self, api_key: str) -> bool:
         """Check whether an API key is valid."""

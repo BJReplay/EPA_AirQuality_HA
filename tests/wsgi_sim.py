@@ -21,8 +21,7 @@ Optional run arguments:
 * --setup-hosts      Add /etc/hosts entry to redirect EPA API domain to localhost, then exit.
 * --port PORT        Port to listen on (default: 443).
 * --no-ssl           Run without SSL (HTTP only). Requires collector URL_BASE change to http://.
-* --limit LIMIT      Set an API call limit per key (default: unlimited).
-* --bomb429 w-x,y,z  Minute(s) of the hour to return 429 too busy, comma separated.
+* --bomb504 w-x,y,z  Minute(s) of the hour to return 504 gateway timeout, comma separated.
 * --debug            Enable Flask debug mode.
 
 Theory of operation:
@@ -35,7 +34,7 @@ Theory of operation:
     - GET /environmentMonitoring/v1/sites/?environmentalSegment=air                         → list all sites
     - GET /environmentMonitoring/v1/sites/?environmentalSegment=air&location=[lat,lon]       → find nearest site
     - GET /environmentMonitoring/v1/sites/{siteID}/parameters                                → site observations
-* Optional 429 responses are returned at specified bomb429 minutes of each hour.
+* Optional 504 gateway timeout responses are returned at specified bomb504 minutes of each hour.
 * The time zone defaults to Australia/Melbourne but can be read from HA config.
 
 Connecting the integration to the simulator:
@@ -69,7 +68,7 @@ import sys
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from simulator.simulate import API_KEY_SITES, SimulatedEPA
+from simulator.simulate import SimulatedEPA
 
 simulate = SimulatedEPA()
 
@@ -89,6 +88,7 @@ need_restart = False
 try:
     from flask import Flask, jsonify, request
     from flask.json.provider import DefaultJSONProvider
+    from flask.typing import ResponseReturnValue
 except (ModuleNotFoundError, ImportError):
     subprocess.check_call([sys.executable, "-m", "pip", "install", "flask"])
     need_restart = True
@@ -137,19 +137,19 @@ def setup_hosts() -> None:
 
 # --- Configuration ---
 
-API_LIMIT: int = 0  # 0 = unlimited
-BOMB_429: list[int] = [0]
-GENERATE_429: bool = True
+BOMB_504: list[int] = [0]
+GENERATE_504: bool = True
+
+# Minimal HTML body returned with 504 responses — mimics a real gateway timeout.
+_HTML_504 = "<!DOCTYPE html><html><head><title>504 Gateway Timeout</title></head><body><h1>504 Gateway Time-out</h1></body></html>"
 
 ERROR_KEY_REQUIRED = "KeyRequired"
 ERROR_INVALID_KEY = "InvalidKey"
-ERROR_TOO_MANY_REQUESTS = "TooManyRequests"
 ERROR_SITE_NOT_FOUND = "SiteNotFound"
 
 ERROR_MESSAGE: dict[str, Any] = {
     ERROR_KEY_REQUIRED: {"message": "An API key must be specified.", "status": 400},
     ERROR_INVALID_KEY: {"message": "Invalid API key.", "status": 403},
-    ERROR_TOO_MANY_REQUESTS: {"message": "You have exceeded your daily API limit.", "status": 429},
     ERROR_SITE_NOT_FOUND: {"message": "The specified site cannot be found.", "status": 404},
 }
 
@@ -193,23 +193,16 @@ class DtJSONProvider(DefaultJSONProvider):
 app = Flask(__name__)
 app.json = DtJSONProvider(app)
 _LOGGER = app.logger
-counter_last_reset = dt.now(datetime.UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+
+_VALID_API_KEYS: frozenset[str] = frozenset(simulate.valid_api_keys())
 
 
-def validate_call(api_key: str | None, counter: bool = True) -> tuple[int, Any]:
+def validate_call(api_key: str | None) -> tuple[int, Any]:
     """Validate an API call and return (status_code, error_body_or_None).
 
     Returns:
         tuple: (200, None) on success, or (error_code, error_dict) on failure.
     """
-    global counter_last_reset  # noqa: PLW0603
-
-    # Reset counters at UTC midnight
-    if counter_last_reset.day != dt.now(datetime.UTC).day:
-        _LOGGER.info("Resetting API usage counters")
-        for v in API_KEY_SITES.values():
-            v["counter"] = 0
-        counter_last_reset = dt.now(datetime.UTC).replace(hour=0, minute=0, second=0, microsecond=0)
 
     def error(code: str) -> tuple[int, dict[str, Any]]:
         return (
@@ -219,16 +212,10 @@ def validate_call(api_key: str | None, counter: bool = True) -> tuple[int, Any]:
 
     if not api_key:
         return error(ERROR_KEY_REQUIRED)
-    if api_key not in API_KEY_SITES:
+    if api_key not in _VALID_API_KEYS:
         return error(ERROR_INVALID_KEY)
-    if GENERATE_429 and dt.now(datetime.UTC).minute in BOMB_429:
-        return 429, {"error_code": ERROR_TOO_MANY_REQUESTS, "message": "API too busy, try again later."}
-    if counter and API_LIMIT > 0:
-        current = API_KEY_SITES.get(api_key, {}).get("counter", 0)
-        if current >= API_LIMIT:
-            return error(ERROR_TOO_MANY_REQUESTS)
-        API_KEY_SITES[api_key]["counter"] = current + 1
-        _LOGGER.info("API key %s used %s times", api_key, API_KEY_SITES[api_key]["counter"])
+    if GENERATE_504 and dt.now(datetime.UTC).minute in BOMB_504:
+        return 504, _HTML_504
 
     return 200, None
 
@@ -243,7 +230,7 @@ def _extract_api_key() -> str | None:
 
 @app.route("/environmentMonitoring/v1/sites/", methods=["GET"])
 @app.route("/environmentMonitoring/v1/sites", methods=["GET"])
-def get_sites() -> tuple[Any, int]:
+def get_sites() -> "ResponseReturnValue":
     """Return site list or nearest site by location.
 
     Query parameters:
@@ -251,8 +238,10 @@ def get_sites() -> tuple[Any, int]:
         location: optional, format "[lat,lon]" - returns nearest site(s)
     """
     api_key = _extract_api_key()
-    response_code, issue = validate_call(api_key, counter=False)
+    response_code, issue = validate_call(api_key)
     if response_code != 200:
+        if isinstance(issue, str):
+            return issue, response_code, {"Content-Type": "text/html; charset=utf-8"}
         return jsonify(issue) if issue else "", response_code
 
     location = request.args.get("location")
@@ -273,7 +262,7 @@ def get_sites() -> tuple[Any, int]:
 
 
 @app.route("/environmentMonitoring/v1/sites/<site_id>/parameters", methods=["GET"])
-def get_site_parameters(site_id: str) -> tuple[Any, int]:
+def get_site_parameters(site_id: str) -> "ResponseReturnValue":
     """Return observation parameters for a specific monitoring site.
 
     Path parameters:
@@ -282,6 +271,8 @@ def get_site_parameters(site_id: str) -> tuple[Any, int]:
     api_key = _extract_api_key()
     response_code, issue = validate_call(api_key)
     if response_code != 200:
+        if isinstance(issue, str):
+            return issue, response_code, {"Content-Type": "text/html; charset=utf-8"}
         return jsonify(issue) if issue else "", response_code
 
     if not simulate.site_exists(site_id):
@@ -353,10 +344,9 @@ if __name__ == "__main__":
     )
     parser.add_argument("--port", help="Port to listen on (default: 443)", type=int, required=False, default=443)
     parser.add_argument("--no-ssl", help="Run without SSL (HTTP only)", action="store_true", required=False)
-    parser.add_argument("--limit", help="Set the API call limit per key (0 = unlimited)", type=int, required=False)
     parser.add_argument(
-        "--bomb429",
-        help="Minute(s) of the hour to return 429, comma separated with optional ranges (e.g. 0-5,15,30)",
+        "--bomb504",
+        help="Minute(s) of the hour to return 504 gateway timeout, comma separated with optional ranges (e.g. 0-5,15,30)",
         type=str,
         required=False,
     )
@@ -371,18 +361,12 @@ if __name__ == "__main__":
     _LOGGER.info("Originally modelled after the Solcast Solar API simulator by @autoSteve")
     get_time_zone()
 
-    if args.limit is not None:
-        API_LIMIT = args.limit
-        _LOGGER.info("API limit set to %s", API_LIMIT)
-    if args.bomb429:
-        GENERATE_429 = True
-        BOMB_429 = _parse_bomb_minutes(args.bomb429)
-        _LOGGER.info("429 responses will be returned at minute(s) %s", BOMB_429)
+    if args.bomb504:
+        GENERATE_504 = True
+        BOMB_504 = _parse_bomb_minutes(args.bomb504)
+        _LOGGER.info("504 gateway timeout responses will be returned at minute(s) %s", BOMB_504)
     else:
-        GENERATE_429 = False
-
-    if API_LIMIT == 0:
-        _LOGGER.info("API limit is unlimited")
+        GENERATE_504 = False
 
     use_ssl = not args.no_ssl
     port = args.port
