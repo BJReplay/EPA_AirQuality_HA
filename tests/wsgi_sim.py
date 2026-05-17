@@ -89,7 +89,7 @@ try:
     from flask import Flask, jsonify, request
     from flask.json.provider import DefaultJSONProvider
     from flask.typing import ResponseReturnValue
-except (ModuleNotFoundError, ImportError):
+except ModuleNotFoundError, ImportError:
     subprocess.check_call([sys.executable, "-m", "pip", "install", "flask"])
     need_restart = True
 
@@ -252,7 +252,7 @@ def get_sites() -> ResponseReturnValue:
             parts = clean.split(",")
             lat = float(parts[0])
             lon = float(parts[1])
-        except (ValueError, IndexError):
+        except ValueError, IndexError:
             return jsonify({"error": "Invalid location format. Use [lat,lon]"}), 400
         result = simulate.get_sites_by_location(lat, lon)
     else:
