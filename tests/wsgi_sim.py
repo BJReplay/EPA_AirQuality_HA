@@ -230,7 +230,7 @@ def _extract_api_key() -> str | None:
 
 @app.route("/environmentMonitoring/v1/sites/", methods=["GET"])
 @app.route("/environmentMonitoring/v1/sites", methods=["GET"])
-def get_sites() -> "ResponseReturnValue":
+def get_sites() -> ResponseReturnValue:
     """Return site list or nearest site by location.
 
     Query parameters:
@@ -262,7 +262,7 @@ def get_sites() -> "ResponseReturnValue":
 
 
 @app.route("/environmentMonitoring/v1/sites/<site_id>/parameters", methods=["GET"])
-def get_site_parameters(site_id: str) -> "ResponseReturnValue":
+def get_site_parameters(site_id: str) -> ResponseReturnValue:
     """Return observation parameters for a specific monitoring site.
 
     Path parameters:

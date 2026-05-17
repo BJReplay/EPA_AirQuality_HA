@@ -1,6 +1,6 @@
 """Tests for the EPA Victoria Air Quality collector."""
 
-from typing import Any
+from typing import Any, Self
 from unittest.mock import MagicMock
 
 from aiohttp import ClientResponseError, ContentTypeError, RequestInfo
@@ -34,12 +34,12 @@ class MockResponse:
     def __await__(self):
         """Support: resp = await session.get(url)."""
 
-        async def _coro() -> "MockResponse":
+        async def _coro() -> MockResponse:
             return self
 
         return _coro().__await__()
 
-    async def __aenter__(self) -> "MockResponse":
+    async def __aenter__(self) -> Self:
         """Support: async with session.get(url) as resp:."""
         return self
 
@@ -61,7 +61,7 @@ class MockClientSession:
         self._call_count += 1
         return resp
 
-    async def __aenter__(self) -> "MockClientSession":
+    async def __aenter__(self) -> Self:
         """Enter the async context manager."""
         return self
 
@@ -646,7 +646,7 @@ class GatewayErrorResponse:
             message="Attempt to decode JSON with unexpected mimetype: text/html",
         )
 
-    async def __aenter__(self) -> "GatewayErrorResponse":
+    async def __aenter__(self) -> Self:
         """Enter the async context manager."""
         return self
 
