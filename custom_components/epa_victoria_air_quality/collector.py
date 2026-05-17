@@ -115,7 +115,7 @@ class Collector:
                 try:
                     self.site_id = self.location_data[RECORDS][0][SITE_ID]
                     self.site_name = self.location_data[RECORDS][0][SITE_NAME]
-                    _LOGGER.debug("EPA site %s (%s) located", self.site_name, self.site_id)
+                    _LOGGER.debug("Site %s (%s) located", self.site_name, self.site_id)
                     self.site_found = True
                 except KeyError:
                     _LOGGER.error(
@@ -170,7 +170,7 @@ class Collector:
                     self.locations_list: list[SelectOptionDict] = [
                         SelectOptionDict(label=location[SITE_NAME], value=location[SITE_ID]) for location in sorted_locs
                     ]
-                    _LOGGER.debug("EPA site list loaded: %s sites", len(self.locations_list))
+                    _LOGGER.debug("Site list loaded: %s sites", len(self.locations_list))
                     self.sites_found = True
                 except KeyError:
                     _LOGGER.error(
@@ -428,13 +428,13 @@ class Collector:
                     UNTIL: self.until,
                 }
                 if self._unavailable_logged:
-                    _LOGGER.info("EPA %s data is available again", self.site_name)
+                    _LOGGER.info("%s data is available again", self.site_name)
                     self._unavailable_logged = False
             elif not self._unavailable_logged:
-                _LOGGER.warning("EPA %s returned observation data but no valid readings", self.site_name)
+                _LOGGER.warning("%s returned observation data but no valid readings", self.site_name)
                 self._unavailable_logged = True
         elif not self._unavailable_logged:
-            _LOGGER.warning("EPA %s returned no observation data", self.site_name)
+            _LOGGER.warning("%s returned no observation data", self.site_name)
             self._unavailable_logged = True
 
     @Throttle(datetime.timedelta(minutes=5))
@@ -446,12 +446,12 @@ class Collector:
                 if self.location_data is None:
                     await self.get_location_data()
 
-                _LOGGER.debug("Updating EPA %s observation data", self.site_name)
+                _LOGGER.debug("Updating %s observation data", self.site_name)
                 async with session.get(URL_BASE + self.get_location() + URL_PARAMETERS, headers=self.headers, ssl=False) as resp:
                     if resp.status >= 500:
                         if not self._unavailable_logged:
                             _LOGGER.warning(
-                                "EPA %s air quality readings could not be updated: the service returned HTTP %d (transient error, will retry)",
+                                "%s air quality readings could not be updated: the service returned HTTP %d (transient error, will retry)",
                                 self.site_name,
                                 resp.status,
                             )
@@ -461,12 +461,12 @@ class Collector:
                     await self.extract_observation_data()
         except ConnectionRefusedError as e:
             if not self._unavailable_logged:
-                _LOGGER.warning("Connection error in async_update for site %s, connection refused: %s", self.site_name, e)
+                _LOGGER.warning("Connection refused for site %s: %s", self.site_name, e)
                 self._unavailable_logged = True
         except ClientResponseError as e:
             if not self._unavailable_logged:
                 _LOGGER.warning(
-                    "EPA %s air quality readings could not be updated: HTTP error %d (will retry)",
+                    "%s air quality readings could not be updated: HTTP error %d (will retry)",
                     self.site_name,
                     e.status,
                 )
