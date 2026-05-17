@@ -3,6 +3,7 @@
 from typing import Any
 from unittest.mock import MagicMock
 
+from aiohttp import ClientResponseError, ContentTypeError, RequestInfo
 import pytest
 
 from homeassistant.components.epa_victoria_air_quality.collector import Collector
@@ -501,6 +502,7 @@ async def test_extract_observation_data_recovery_logs_info(caplog: pytest.LogCap
 
 @pytest.mark.asyncio
 async def test_extract_observation_data_no_parameters() -> None:
+    """When no parameters block is present, observation_data remains empty but no error is raised."""
     c = Collector(
         api_key=TEST_API_KEY_1,
         epa_site_id=TEST_SITE_ID_1,
@@ -626,3 +628,134 @@ async def test_async_setup_exception() -> None:
     """Unexpected exception inside async_setup is logged and swallowed."""
     c = Collector(api_key=TEST_API_KEY_1, latitude=TEST_LAT, longitude=TEST_LON, session=ErrorClientSession(RuntimeError("unexpected")))  # pyright: ignore[reportArgumentType]
     await c.async_setup()  # Must not raise
+
+
+class GatewayErrorResponse:
+    """Mock aiohttp response that simulates a 5xx gateway error returning HTML."""
+
+    def __init__(self, status: int = 504) -> None:
+        """Initialise with the error status code."""
+        self.status = status
+
+    async def json(self) -> Any:
+        """Raise ContentTypeError as a real 504 HTML response would."""
+        raise ContentTypeError(
+            RequestInfo(url="https://example.com", method="GET", headers={}, real_url="https://example.com"),  # type: ignore[arg-type]
+            history=(),
+            status=self.status,
+            message="Attempt to decode JSON with unexpected mimetype: text/html",
+        )
+
+    async def __aenter__(self) -> "GatewayErrorResponse":
+        """Enter the async context manager."""
+        return self
+
+    async def __aexit__(self, *args: object) -> None:
+        """Exit the async context manager."""
+
+
+class GatewayErrorClientSession:
+    """Mock session whose get() returns a 5xx gateway error response."""
+
+    def __init__(self, status: int = 504) -> None:
+        """Initialise with the HTTP status code to return."""
+        self._status = status
+
+    def get(self, url: str, **kwargs: Any) -> GatewayErrorResponse:
+        """Return a gateway error response."""
+        return GatewayErrorResponse(self._status)
+
+
+@pytest.mark.asyncio
+async def test_async_update_5xx_logs_clean_warning_not_traceback(caplog: pytest.LogCaptureFixture) -> None:
+    """A 5xx response logs a friendly warning without a traceback."""
+    c = Collector(
+        api_key=TEST_API_KEY_1,
+        epa_site_id=TEST_SITE_ID_1,
+        latitude=TEST_LAT,
+        longitude=TEST_LON,
+        session=GatewayErrorClientSession(504),  # pyright: ignore[reportArgumentType]
+    )
+    c.site_name = "Box Hill"
+
+    await c.async_update()
+
+    assert c._unavailable_logged is True
+    assert "HTTP 504" in caplog.text
+    assert "transient" in caplog.text
+    # Must not log a raw Python traceback.
+    assert "Traceback" not in caplog.text
+    assert "ContentTypeError" not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_async_update_5xx_logs_once_then_suppresses(caplog: pytest.LogCaptureFixture) -> None:
+    """Repeated 5xx responses only log the warning on the first failure."""
+    c = Collector(
+        api_key=TEST_API_KEY_1,
+        epa_site_id=TEST_SITE_ID_1,
+        latitude=TEST_LAT,
+        longitude=TEST_LON,
+        session=GatewayErrorClientSession(503),  # pyright: ignore[reportArgumentType]
+    )
+    c.site_name = "Melbourne CBD"
+
+    await c.async_update()
+    caplog.clear()
+    # Second call: bypass throttle with no_throttle=True.
+    await c.async_update(no_throttle=True)
+
+    # Warning must NOT appear a second time.
+    assert "HTTP 503" not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_async_update_5xx_recovery_logs_info(caplog: pytest.LogCaptureFixture) -> None:
+    """After a 5xx warning, a subsequent successful response logs a recovery message."""
+    params = SIM.get_site_parameters(TEST_SITE_ID_1)
+
+    # First call: 504 gateway error.
+    c = Collector(
+        api_key=TEST_API_KEY_1,
+        epa_site_id=TEST_SITE_ID_1,
+        latitude=TEST_LAT,
+        longitude=TEST_LON,
+        session=GatewayErrorClientSession(504),  # pyright: ignore[reportArgumentType]
+    )
+    c.site_name = "Box Hill"
+    await c.async_update()
+    assert c._unavailable_logged is True
+
+    # Second call: successful response — swap the session.
+    c._session = MockClientSession([MockResponse(params)])  # pyright: ignore[reportAttributeAccessIssue, reportArgumentType]
+    caplog.clear()
+    await c.async_update(no_throttle=True)
+
+    assert c._unavailable_logged is False
+    assert "available again" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_async_update_client_response_error_logs_clean_warning(caplog: pytest.LogCaptureFixture) -> None:
+    """A ClientResponseError from the session is caught and logged without a traceback."""
+
+    def _make_client_response_error(status: int) -> ClientResponseError:
+        return ClientResponseError(
+            RequestInfo(url="https://example.com", method="GET", headers={}, real_url="https://example.com"),  # type: ignore[arg-type]
+            history=(),
+            status=status,
+        )
+
+    c = Collector(
+        api_key=TEST_API_KEY_1,
+        epa_site_id=TEST_SITE_ID_1,
+        latitude=TEST_LAT,
+        longitude=TEST_LON,
+        session=ErrorClientSession(_make_client_response_error(502)),  # pyright: ignore[reportArgumentType]
+    )
+    c.site_name = "Box Hill"
+    await c.async_update()
+
+    assert c._unavailable_logged is True
+    assert "HTTP error 502" in caplog.text
+    assert "Traceback" not in caplog.text

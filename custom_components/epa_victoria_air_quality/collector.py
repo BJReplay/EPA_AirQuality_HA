@@ -5,7 +5,7 @@ from datetime import datetime as dt
 import logging
 import traceback
 
-from aiohttp import ClientSession
+from aiohttp import ClientResponseError, ClientSession
 import aqi
 from geopy import distance
 
@@ -448,11 +448,28 @@ class Collector:
 
                 _LOGGER.debug("Updating EPA %s observation data", self.site_name)
                 async with session.get(URL_BASE + self.get_location() + URL_PARAMETERS, headers=self.headers, ssl=False) as resp:
+                    if resp.status >= 500:
+                        if not self._unavailable_logged:
+                            _LOGGER.warning(
+                                "EPA %s air quality readings could not be updated: the service returned HTTP %d (transient error, will retry)",
+                                self.site_name,
+                                resp.status,
+                            )
+                            self._unavailable_logged = True
+                        return
                     self.observations_data = await resp.json()
                     await self.extract_observation_data()
         except ConnectionRefusedError as e:
             if not self._unavailable_logged:
                 _LOGGER.warning("Connection error in async_update for site %s, connection refused: %s", self.site_name, e)
+                self._unavailable_logged = True
+        except ClientResponseError as e:
+            if not self._unavailable_logged:
+                _LOGGER.warning(
+                    "EPA %s air quality readings could not be updated: HTTP error %d (will retry)",
+                    self.site_name,
+                    e.status,
+                )
                 self._unavailable_logged = True
         except Exception:  # noqa: BLE001
             if not self._unavailable_logged:
