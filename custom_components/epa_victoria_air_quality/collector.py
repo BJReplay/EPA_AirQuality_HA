@@ -5,7 +5,7 @@ from datetime import datetime as dt
 import logging
 import traceback
 
-import aiohttp
+from aiohttp import ClientResponseError, ClientSession
 import aqi
 from geopy import distance
 
@@ -63,8 +63,10 @@ class Collector:
         epa_site_id: str = "",
         latitude: float = 0,
         longitude: float = 0,
+        session: ClientSession | None = None,
     ) -> None:
         """Init collector."""
+        self._session: ClientSession | None = session
         self.location_data: dict = {}
         self.locations_list: list[SelectOptionDict] = []
         self.observation_data: dict = {}
@@ -90,6 +92,7 @@ class Collector:
         self.last_updated: dt = dt.fromtimestamp(0)
         self.site_found: bool = False
         self.sites_found: bool = False
+        self._unavailable_logged: bool = False
         self.headers: dict = {
             "Accept": "application/json",
             "User-Agent": "ha-epa-integration/" + self.version_string,
@@ -102,79 +105,79 @@ class Collector:
 
     async def get_location_data(self):
         """Get JSON location name from EPA API endpoint."""
-        async with aiohttp.ClientSession(headers=self.headers) as session:
-            if self.latitude != 0 and self.longitude != 0:
-                url = f"{URL_BASE}{URL_FIND_SITE}[{self.latitude},{self.longitude}]"
-                response = await session.get(url, ssl=False)
+        session = self._session
+        if session is not None and self.latitude != 0 and self.longitude != 0:
+            url = f"{URL_BASE}{URL_FIND_SITE}[{self.latitude},{self.longitude}]"
+            response = await session.get(url, headers=self.headers, ssl=False)
 
-                if response is not None and response.status == 200:
-                    self.location_data = await response.json()
-                    try:
-                        self.site_id = self.location_data[RECORDS][0][SITE_ID]
-                        self.site_name = self.location_data[RECORDS][0][SITE_NAME]
-                        _LOGGER.debug("EPA site %s (%s) located", self.site_name, self.site_id)
-                        self.site_found = True
-                    except KeyError:
-                        _LOGGER.error(
-                            "Exception in get_location_data() for site %s: %s",
-                            self.site_id,
-                            traceback.format_exc(),
-                        )
-                        self.site_found = False
+            if response is not None and response.status == 200:
+                self.location_data = await response.json()
+                try:
+                    self.site_id = self.location_data[RECORDS][0][SITE_ID]
+                    self.site_name = self.location_data[RECORDS][0][SITE_NAME]
+                    _LOGGER.debug("Site %s (%s) located", self.site_name, self.site_id)
+                    self.site_found = True
+                except KeyError:
+                    _LOGGER.error(
+                        "Exception in get_location_data() for site %s: %s",
+                        self.site_id,
+                        traceback.format_exc(),
+                    )
+                    self.site_found = False
 
     async def get_locations_list(self):
         """Get JSON location list from EPA API endpoint."""
-        async with aiohttp.ClientSession(headers=self.headers) as session:
-            if self.latitude != 0 and self.longitude != 0:
-                url = f"{URL_BASE}{URL_LIST_SITE}"
-                response = await session.get(url, ssl=False)
+        session = self._session
+        if session is not None and self.latitude != 0 and self.longitude != 0:
+            url = f"{URL_BASE}{URL_LIST_SITE}"
+            response = await session.get(url, headers=self.headers, ssl=False)
 
-                if response is not None and response.status == 200:
-                    temp_loc_list = []
-                    locations_list = await response.json()
-                    try:
-                        records: dict = {}
-                        record: dict = {}
-                        siteHealthAdvices: dict = {}
-                        if locations_list.get(RECORDS) is not None:
-                            records = locations_list[RECORDS]
-                            for record in records:
-                                site_id = record[SITE_ID]
-                                site_name = record[SITE_NAME]
-                                site_type = record[SITE_TYPE]
-                                if site_type in (
-                                    SITE_TYPE_SENSOR,
-                                    SITE_TYPE_STANDARD,
-                                ):  # If it isn't a camera
-                                    if (
-                                        record.get(SITE_HEALTH_ADVICES) is not None and record.get(SITE_HEALTH_ADVICES)[0] is not None  # pyright: ignore[reportOptionalSubscript]
-                                    ):  # Get Health Site Advices
-                                        siteHealthAdvices = record[SITE_HEALTH_ADVICES][0]
-                                        if siteHealthAdvices.get(HEALTH_PARAMETER) is not None:  # If site has a Health Parameter
-                                            latitude = record[GEOMETRY][COORDINATES][0]
-                                            longitude = record[GEOMETRY][COORDINATES][1]
-                                            temp_loc_list.append(
-                                                {
-                                                    SITE_ID: site_id,
-                                                    SITE_NAME: site_name,
-                                                    DISTANCE: distance.geodesic(
-                                                        (latitude, longitude),
-                                                        (self.latitude, self.longitude),
-                                                    ).meters,
-                                                }
-                                            )
-                        sorted_locs = sorted(temp_loc_list, key=lambda itm: itm.get(DISTANCE))
-                        self.locations_list: list[SelectOptionDict] = [
-                            SelectOptionDict(label=location[SITE_NAME], value=location[SITE_ID]) for location in sorted_locs
-                        ]
-                        _LOGGER.debug("EPA site list loaded: %s sites", len(self.locations_list))
-                        self.sites_found = True
-                    except KeyError:
-                        _LOGGER.error(
-                            "Exception in get_locations_list(): %s",
-                            traceback.format_exc(),
-                        )
-                        self.sites_found = False
+            if response is not None and response.status == 200:
+                temp_loc_list = []
+                locations_list = await response.json()
+                try:
+                    records: dict = {}
+                    record: dict = {}
+                    siteHealthAdvices: dict = {}
+                    if locations_list.get(RECORDS) is not None:
+                        records = locations_list[RECORDS]
+                        for record in records:
+                            site_id = record[SITE_ID]
+                            site_name = record[SITE_NAME]
+                            site_type = record[SITE_TYPE]
+                            if site_type in (
+                                SITE_TYPE_SENSOR,
+                                SITE_TYPE_STANDARD,
+                            ):  # If it isn't a camera
+                                if (
+                                    record.get(SITE_HEALTH_ADVICES) is not None and record.get(SITE_HEALTH_ADVICES)[0] is not None  # pyright: ignore[reportOptionalSubscript]
+                                ):  # Get Health Site Advices
+                                    siteHealthAdvices = record[SITE_HEALTH_ADVICES][0]
+                                    if siteHealthAdvices.get(HEALTH_PARAMETER) is not None:  # If site has a Health Parameter
+                                        latitude = record[GEOMETRY][COORDINATES][0]
+                                        longitude = record[GEOMETRY][COORDINATES][1]
+                                        temp_loc_list.append(
+                                            {
+                                                SITE_ID: site_id,
+                                                SITE_NAME: site_name,
+                                                DISTANCE: distance.geodesic(
+                                                    (latitude, longitude),
+                                                    (self.latitude, self.longitude),
+                                                ).meters,
+                                            }
+                                        )
+                    sorted_locs = sorted(temp_loc_list, key=lambda itm: itm.get(DISTANCE))
+                    self.locations_list: list[SelectOptionDict] = [
+                        SelectOptionDict(label=location[SITE_NAME], value=location[SITE_ID]) for location in sorted_locs
+                    ]
+                    _LOGGER.debug("Site list loaded: %s sites", len(self.locations_list))
+                    self.sites_found = True
+                except KeyError:
+                    _LOGGER.error(
+                        "Exception in get_locations_list(): %s",
+                        traceback.format_exc(),
+                    )
+                    self.sites_found = False
 
     def valid_location(self) -> bool:
         """Return true if a valid location has been found from the latitude and longitude.
@@ -407,42 +410,75 @@ class Collector:
                                     self.aqi = self.aqi_24h
                                     self.data_source_1h = time_series_reading[TIME_SERIES_NAME]
 
-            self.last_updated = dt.now()
-            self.observation_data = {
-                TYPE_AQI: self.aqi,
-                TYPE_AQI_24H: self.aqi_24h,
-                TYPE_AQI_PM25: self.aqi_pm25,
-                TYPE_AQI_PM25_24H: self.aqi_pm25_24h,
-                TYPE_PM25: self.pm25,
-                TYPE_PM25_24H: self.pm25_24h,
-                ATTR_CONFIDENCE: self.confidence,
-                ATTR_CONFIDENCE_24H: self.confidence_24h,
-                ATTR_DATA_SOURCE: self.data_source_1h,
-                ATTR_TOTAL_SAMPLE: self.total_sample,
-                ATTR_TOTAL_SAMPLE_24H: self.total_sample_24h,
-                UNTIL: self.until,
-            }
+            data_valid = self.pm25_24h is not None or (self.confidence > 0 and self.total_sample > 0)
+            if data_valid:
+                self.last_updated = dt.now()
+                self.observation_data = {
+                    TYPE_AQI: self.aqi if self.pm25 is not None else None,
+                    TYPE_AQI_24H: self.aqi_24h if self.pm25_24h is not None else None,
+                    TYPE_AQI_PM25: self.aqi_pm25,
+                    TYPE_AQI_PM25_24H: self.aqi_pm25_24h,
+                    TYPE_PM25: self.pm25,
+                    TYPE_PM25_24H: self.pm25_24h,
+                    ATTR_CONFIDENCE: self.confidence,
+                    ATTR_CONFIDENCE_24H: self.confidence_24h,
+                    ATTR_DATA_SOURCE: self.data_source_1h,
+                    ATTR_TOTAL_SAMPLE: self.total_sample,
+                    ATTR_TOTAL_SAMPLE_24H: self.total_sample_24h,
+                    UNTIL: self.until,
+                }
+                if self._unavailable_logged:
+                    _LOGGER.info("%s data is available again", self.site_name)
+                    self._unavailable_logged = False
+            elif not self._unavailable_logged:
+                _LOGGER.warning("%s returned observation data but no valid readings", self.site_name)
+                self._unavailable_logged = True
+        elif not self._unavailable_logged:
+            _LOGGER.warning("%s returned no observation data", self.site_name)
+            self._unavailable_logged = True
 
     @Throttle(datetime.timedelta(minutes=5))
     async def async_update(self):
         """Refresh the data on the collector object."""
         try:
-            async with aiohttp.ClientSession(headers=self.headers) as session:
+            session = self._session
+            if session is not None:
                 if self.location_data is None:
                     await self.get_location_data()
 
-                _LOGGER.debug("Updating EPA %s observation data", self.site_name)
-                async with session.get(URL_BASE + self.get_location() + URL_PARAMETERS, ssl=False) as resp:
+                _LOGGER.debug("Updating %s observation data", self.site_name)
+                async with session.get(URL_BASE + self.get_location() + URL_PARAMETERS, headers=self.headers, ssl=False) as resp:
+                    if resp.status >= 500:
+                        if not self._unavailable_logged:
+                            _LOGGER.warning(
+                                "%s air quality readings could not be updated: the service returned HTTP %d (transient error, will retry)",
+                                self.site_name,
+                                resp.status,
+                            )
+                            self._unavailable_logged = True
+                        return
                     self.observations_data = await resp.json()
                     await self.extract_observation_data()
         except ConnectionRefusedError as e:
-            _LOGGER.error("Connection error in async_update for site %s, connection refused: %s", self.site_name, e)
+            if not self._unavailable_logged:
+                _LOGGER.warning("Connection refused for site %s: %s", self.site_name, e)
+                self._unavailable_logged = True
+        except ClientResponseError as e:
+            if not self._unavailable_logged:
+                _LOGGER.warning(
+                    "%s air quality readings could not be updated: HTTP error %d (will retry)",
+                    self.site_name,
+                    e.status,
+                )
+                self._unavailable_logged = True
         except Exception:  # noqa: BLE001
-            _LOGGER.error(
-                "Exception in async_update() for site %s: %s",
-                self.site_name,
-                traceback.format_exc(),
-            )
+            if not self._unavailable_logged:
+                _LOGGER.warning(
+                    "Exception in async_update() for site %s: %s",
+                    self.site_name,
+                    traceback.format_exc(),
+                )
+                self._unavailable_logged = True
 
     async def async_setup(self):
         """Set up the location list for the collector object."""
