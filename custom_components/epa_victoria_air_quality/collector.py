@@ -25,6 +25,16 @@ from .const import (
     GEOMETRY,
     HEALTH_ADVICE,
     HEALTH_PARAMETER,
+#    NAME_API,
+#    NAME_AQI,
+#    NAME_CO,
+#    NAME_NO2,
+#    NAME_O3,
+#    NAME_PM10,
+    NAME_PM25,
+#    NAME_SO2,
+#   NAME_VISIBILITY,
+    PARAM_NAME,
     PARAMETERS,
     READINGS,
     RECORDS,
@@ -374,7 +384,11 @@ class Collector:
         self.observation_data = {}
         if self.observations_data.get(PARAMETERS) is not None:
             parameters = self.observations_data[PARAMETERS]
+            # Only PM2.5 is currently supported; add more pollutants to this list as needed.
+            supported_pollutants = [NAME_PM25]
             for parameter in parameters:
+                if parameter.get(PARAM_NAME) not in supported_pollutants:
+                    continue
                 if parameter.get(TIME_SERIES_READINGS) is not None:
                     time_series_readings = parameter[TIME_SERIES_READINGS]
                     for time_series_reading in time_series_readings:

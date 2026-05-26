@@ -1,7 +1,5 @@
 """Constants for the EPA Air Quality integration."""
 
-from __future__ import annotations
-
 from datetime import timedelta
 from typing import Final
 
@@ -33,6 +31,16 @@ ATTR_CONFIDENCE_24H: Final = "confidence_24h"
 ATTR_DATA_SOURCE: Final = "data_source"
 ATTR_TOTAL_SAMPLE: Final = "total_samples"
 ATTR_TOTAL_SAMPLE_24H: Final = "total_samples_24h"
+NAME_API: Final = "API"
+NAME_AQI: Final = "AQI"
+NAME_CO: Final = "CO"
+NAME_NO2: Final = "NO2"
+NAME_O3: Final = "O3"
+NAME_PM10: Final = "PM10"
+NAME_PM25: Final = "PM2.5"
+NAME_SO2: Final = "SO2"
+NAME_VISIBILITY: Final = "Visibility"
+PARAM_NAME: Final = "name"
 TYPE_AQI: Final = "aqi"
 TYPE_AQI_24H: Final = "aqi_24h"
 TYPE_AQI_PM25: Final = "aqi_pm25"
