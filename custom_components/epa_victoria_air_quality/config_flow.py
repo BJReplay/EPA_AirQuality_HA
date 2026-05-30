@@ -55,6 +55,16 @@ class EPAVicConfigFlow(ConfigFlow, domain=DOMAIN):
         """
         return EPAVicOptionFlowHandler(config_entry)
 
+    def _get_consistent_existing_api_key(self) -> str:
+        """Return the shared API key across existing entries, if there is exactly one."""
+
+        keys = {
+            api_key
+            for entry in self.hass.config_entries.async_entries(DOMAIN)
+            if (api_key := str(entry.options.get(CONF_API_KEY, "")).strip())
+        }
+        return keys.pop() if len(keys) == 1 else ""
+
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Handle a flow initiated by the user.
 
@@ -97,7 +107,10 @@ class EPAVicConfigFlow(ConfigFlow, domain=DOMAIN):
             step_id="user",
             data_schema=vol.Schema(
                 {
-                    vol.Required(CONF_API_KEY, default=""): str,
+                    vol.Required(
+                        CONF_API_KEY,
+                        default=self.data.get(CONF_API_KEY) or self._get_consistent_existing_api_key(),
+                    ): str,
                 }
             ),
             errors=errors,
