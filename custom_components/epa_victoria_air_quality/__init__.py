@@ -14,7 +14,15 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .collector import Collector
-from .const import CONF_LEGACY_UNIQUE_IDS, CONF_SITE_ID, CONF_SITE_NAME, DOMAIN, TITLE
+from .const import (
+    CONF_AQI_SOURCE,
+    CONF_LEGACY_UNIQUE_IDS,
+    CONF_SITE_ID,
+    CONF_SITE_NAME,
+    DEFAULT_AQI_SOURCE,
+    DOMAIN,
+    TITLE,
+)
 from .coordinator import EPADataUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -28,13 +36,15 @@ async def async_migrate_entry(hass: HomeAssistant, entry: EPAConfigEntry) -> boo
     """Migrate old entry."""
     _LOGGER.debug("Migrating from version %s", entry.version)
 
+    update_kwargs: dict = {}
+
     if entry.version < 3:
         # All versions below 3 are migrated.
         # Changes in v3 are:
         #   - CONF_SITE_ID / CONF_API_KEY moved from entry.data to entry.options
         #   - Entry title includes the human-readable location name
         site_id = entry.options.get(CONF_SITE_ID) or entry.data.get(CONF_SITE_ID, "")
-        update_kwargs: dict = {"version": 3}
+        update_kwargs["version"] = 3
 
         if site_id:
             # Migrate CONF_SITE_ID (and CONF_API_KEY) from data to options if absent.
@@ -59,6 +69,13 @@ async def async_migrate_entry(hass: HomeAssistant, entry: EPAConfigEntry) -> boo
             if entry.unique_id is None:
                 update_kwargs["unique_id"] = site_id
 
+    if entry.version < 4:
+        new_options = dict(update_kwargs.get("options", entry.options))
+        new_options.setdefault(CONF_AQI_SOURCE, DEFAULT_AQI_SOURCE)
+        update_kwargs["options"] = new_options
+        update_kwargs["version"] = 4
+
+    if update_kwargs:
         hass.config_entries.async_update_entry(entry, **update_kwargs)
 
     _LOGGER.info("Migration to version %s successful", entry.version)
@@ -95,6 +112,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: EPAConfigEntry) -> bool:
         latitude=options.get(CONF_LATITUDE, 0),
         longitude=options.get(CONF_LONGITUDE, 0),
         session=async_get_clientsession(hass),
+        aqi_source=options.get(CONF_AQI_SOURCE, DEFAULT_AQI_SOURCE),
     )
     collector.site_name = options.get(CONF_SITE_NAME, "")
     coordinator: EPADataUpdateCoordinator = EPADataUpdateCoordinator(hass=hass, collector=collector, version=ua_version)
@@ -107,7 +125,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: EPAConfigEntry) -> bool:
     hass.config_entries.async_update_entry(entry, options=opt)
 
     try:
-        await collector.async_update()
+        _LOGGER.debug("Running initial EPA refresh for %s", entry.title)
+        await collector.async_update(no_throttle=True)
+        _LOGGER.debug("Initial EPA refresh complete for %s", entry.title)
     except ClientConnectorError as ex:
         raise ConfigEntryNotReady from ex
 
@@ -136,8 +156,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: EPAConfigEntry) -> bool:
                     title=new_title,
                 )
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-
-    await coordinator.async_refresh()
 
     hass.data.setdefault(DOMAIN, {})
 

@@ -4,8 +4,10 @@ import copy
 from typing import Any
 
 from homeassistant.components.epa_victoria_air_quality.const import (
+    CONF_AQI_SOURCE,
     CONF_SITE_ID,
     CONF_SITE_NAME,
+    DEFAULT_AQI_SOURCE,
     DOMAIN,
 )
 from homeassistant.const import CONF_API_KEY
@@ -24,13 +26,14 @@ DEFAULT_OPTIONS = {
     CONF_API_KEY: TEST_API_KEY_1,
     CONF_SITE_ID: TEST_SITE_ID_1,
     CONF_SITE_NAME: TEST_SITE_NAME_1,
+    CONF_AQI_SOURCE: DEFAULT_AQI_SOURCE,
 }
 
 
 def create_mock_config_entry(data: dict[str, Any] | None = None, options: dict[str, Any] | None = None) -> MockConfigEntry:
     """Create a mock config entry for EPA Victoria Air Quality.
 
-    Defaults to the v3 format: config stored in options, empty data.
+    Defaults to the v4 format: config stored in options, empty data.
     Pass explicit ``data`` / ``options`` to test migration scenarios.
     """
     return MockConfigEntry(
@@ -39,5 +42,5 @@ def create_mock_config_entry(data: dict[str, Any] | None = None, options: dict[s
         options=options if options is not None else copy.deepcopy(DEFAULT_OPTIONS),
         unique_id=TEST_SITE_ID_1,
         title=f"EPA Air Quality - {TEST_SITE_NAME_1}",
-        version=3,
+        version=4,
     )

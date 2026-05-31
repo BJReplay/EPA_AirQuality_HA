@@ -8,7 +8,11 @@ import pytest
 from homeassistant.components.epa_victoria_air_quality.const import (
     ATTR_CONFIDENCE,
     ATTR_DATA_SOURCE,
+    ATTR_TOTAL_SAMPLE,
+    TYPE_AQI_OVERALL,
     CONF_LEGACY_UNIQUE_IDS,
+    TYPE_NO2,
+    TYPE_PM10,
     TYPE_AQI_PM25,
     TYPE_AQI_PM25_24H,
 )
@@ -34,6 +38,22 @@ def _make_mock_collector(sensor_data: object = 8.5) -> MagicMock:
     mock.get_total_sample_24h.return_value = 288.0
     mock.get_data_source.return_value = "1HR_AV"
     mock.until = "2024-01-01T12:00:00"
+
+    def _attributes_for_key(sensor_key: str) -> dict[str, object]:
+        if sensor_key == TYPE_AQI_PM25_24H:
+            return {
+                ATTR_CONFIDENCE: 0.98,
+                ATTR_TOTAL_SAMPLE: 288.0,
+                "until": "2024-01-01T12:00:00",
+            }
+        return {
+            ATTR_CONFIDENCE: 0.95,
+            ATTR_TOTAL_SAMPLE: 12.0,
+            ATTR_DATA_SOURCE: "1HR_AV",
+            "until": "2024-01-01T12:00:00",
+        }
+
+    mock.get_sensor_attributes.side_effect = _attributes_for_key
     mock.async_update = AsyncMock(return_value=None)
     return mock
 
@@ -128,13 +148,36 @@ async def test_sensor_friendly_name(hass: HomeAssistant) -> None:
 
 @pytest.mark.asyncio
 async def test_sensor_suggested_object_id(hass: HomeAssistant) -> None:
-    """The suggested_object_id matches the original v1 format (no site_id).
-
-    This preserves existing entity IDs like sensor.epa_air_quality_hourly_health_advice
-    and gives _2, _3 suffixes to additional instances.
-    """
+    """The suggested_object_id includes the site name to avoid UUID-heavy entity IDs."""
     sensor, _ = _make_sensor(hass)
+    assert sensor.suggested_object_id == f"epa_air_quality Test Site 1 {SENSORS[TYPE_AQI_PM25].name}"
+
+
+@pytest.mark.asyncio
+async def test_sensor_suggested_object_id_legacy(hass: HomeAssistant) -> None:
+    """Legacy entries keep upstream suggested_object_id behavior for existing users."""
+
+    legacy_options = {**DEFAULT_OPTIONS, CONF_LEGACY_UNIQUE_IDS: True}
+    entry = create_mock_config_entry(options=legacy_options)
+    entry.add_to_hass(hass)
+
+    mock_collector = _make_mock_collector()
+    mock_coordinator = MagicMock(spec=EPADataUpdateCoordinator)
+    mock_coordinator.hass = hass
+    mock_coordinator.collector = mock_collector
+    mock_coordinator.get_version = "1.0"
+    mock_coordinator.async_add_listener = MagicMock(return_value=lambda: None)
+
+    sensor = EPAQualitySensor(mock_coordinator, SENSORS[TYPE_AQI_PM25], entry)
     assert sensor.suggested_object_id == f"epa_air_quality {SENSORS[TYPE_AQI_PM25].name}"
+
+
+def test_sensor_entity_defaults() -> None:
+    """PM2.5/PM10 are enabled by default while secondary pollutants are opt-in."""
+    assert SENSORS[TYPE_AQI_PM25].entity_registry_enabled_default is True
+    assert SENSORS[TYPE_AQI_OVERALL].entity_registry_enabled_default is True
+    assert SENSORS[TYPE_PM10].entity_registry_enabled_default is True
+    assert SENSORS[TYPE_NO2].entity_registry_enabled_default is False
 
 
 @pytest.mark.asyncio

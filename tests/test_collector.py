@@ -425,6 +425,84 @@ async def test_extract_observation_data_24h_none_value() -> None:
 
 
 @pytest.mark.asyncio
+async def test_extract_observation_data_unknown_value_treated_as_missing() -> None:
+    """Literal 'Unknown' reading values are treated as missing data."""
+    c = Collector(
+        api_key=TEST_API_KEY_1,
+        epa_site_id=TEST_SITE_ID_1,
+        latitude=TEST_LAT,
+        longitude=TEST_LON,
+    )
+    c.observations_data = {
+        "parameters": [
+            {
+                "name": "PM10",
+                "timeSeriesReadings": [
+                    {
+                        "timeSeriesName": "1HR_AV",
+                        "readings": [
+                            {
+                                "averageValue": "Unknown",
+                                "healthAdvice": "Unknown",
+                                "until": "2024-01-01T12:00:00",
+                                "confidence": 0,
+                                "totalSample": 0,
+                            }
+                        ],
+                    }
+                ],
+            }
+        ]
+    }
+
+    await c.extract_observation_data()
+
+    assert c.get_sensor("pm10") is None
+    assert c.get_sensor("pm10_advice") is None
+    assert "pm10" not in c.get_available_sensor_keys()
+    assert "pm10_advice" not in c.get_available_sensor_keys()
+
+
+@pytest.mark.asyncio
+async def test_extract_observation_data_logs_api_readings_summary(caplog: pytest.LogCaptureFixture) -> None:
+    """Raw API readings are logged as a single DEBUG summary line."""
+    c = Collector(
+        api_key=TEST_API_KEY_1,
+        epa_site_id=TEST_SITE_ID_1,
+        latitude=TEST_LAT,
+        longitude=TEST_LON,
+    )
+    c.site_name = "Test Site"
+    c.observations_data = {
+        "parameters": [
+            {
+                "name": "PM10",
+                "timeSeriesReadings": [
+                    {
+                        "timeSeriesName": "1HR_AV",
+                        "readings": [
+                            {
+                                "averageValue": "Unknown",
+                                "healthAdvice": "Unknown",
+                                "until": "2024-01-01T12:00:00",
+                                "confidence": 0,
+                                "totalSample": 0,
+                            }
+                        ],
+                    }
+                ],
+            }
+        ]
+    }
+
+    with caplog.at_level("DEBUG"):
+        await c.extract_observation_data()
+
+    assert "Test Site API readings summary:" in caplog.text
+    assert "PM10/1HR_AV:avg='Unknown'" in caplog.text
+
+
+@pytest.mark.asyncio
 async def test_extract_observation_data_no_valid_readings_logs_warning(caplog: pytest.LogCaptureFixture) -> None:
     """When PARAMETERS present but pm25_24h is None and confidence is zero, a warning is logged once."""
     null_readings = {

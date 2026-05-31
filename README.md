@@ -41,14 +41,77 @@ Inspired by [@loryanstrant](https://github.com/loryanstrant) who published [this
 
 Thanks to @autoSteve who provided much of the python knowledge and assistance over at [HA Solcast PV Solar Forecast Integration](https://github.com/BJReplay/ha-solcast-solar) and to @bremor and @Makin-Things who provided inspiration (and a model to steal for a cloud polling integration) with their fantastic [BoM integration](https://github.com/bremor/bureau_of_meteorology).
 
-@autoSteve has just dropped a major release that now supports multiple locations, so you can monitor more than one location.  It currently prompts for the API key for each location (but you can easily copy and paste from your first location by clicking on the configure gear for your already configured location, copying the API key, and using it to configure subsequent locations).
+This integration supports multiple locations, so you can monitor more than one EPA station in Home Assistant.
+
+## Entities Exposed By This Integration
+
+The integration defines a broad entity set, but availability and default visibility depend on what the selected EPA site actually returns.
+
+- Enabled by default: PM2.5 family, PM10 family, primary AQI (`Hourly AQI`, `Daily AQI`), and `Overall AQI`.
+- Disabled by default (can be enabled manually): NO2/O3/SO2/CO families.
+- If EPA does not provide a pollutant for a location at that time, those entities stay unavailable.
+
+### AQI and AQI-derived entities
+
+| Entity | Meaning |
+| --- | --- |
+| `Hourly AQI` | Primary hourly AQI shown by the integration. Source is configurable (`PM2.5` or `Overall`). |
+| `Daily AQI` | Primary daily AQI shown by the integration. Source is configurable (`PM2.5` or `Overall`). |
+| `Hourly Overall AQI` | Highest hourly AQI sub-index across available pollutants. |
+| `Daily Overall AQI` | Highest daily AQI sub-index across available pollutants. |
+| `Hourly PM2.5 AQI` / `Daily PM2.5 AQI` | PM2.5 AQI sub-index values. |
+| `Hourly PM10 AQI` / `Daily PM10 AQI` | PM10 AQI sub-index values. |
+| `Hourly NO2 AQI` | NO2 AQI sub-index (hourly only). |
+| `Hourly O3 AQI` | O3 AQI sub-index (hourly only). |
+| `Hourly SO2 AQI` | SO2 AQI sub-index (hourly only). |
+
+CO AQI is not currently provided because the available EPA time series in this integration does not map to a CO AQI sub-index calculation.
+
+### Pollutant concentration entities
+
+| Entity family | Hourly | Daily | Unit |
+| --- | --- | --- | --- |
+| PM2.5 | Yes | Yes | ug/m3 |
+| PM10 | Yes | Yes | ug/m3 |
+| NO2 | Yes | Yes | ppb |
+| O3 | Yes | Yes | ppb |
+| SO2 | Yes | Yes | ppb |
+| CO | Yes | Yes | ppm |
+
+### Health advice entities
+
+| Entity family | Hourly advice | Daily advice |
+| --- | --- | --- |
+| PM2.5 | Yes (`Hourly Health Advice`) | Yes (`Daily Health Advice`) |
+| PM10 | Yes | Yes |
+| NO2 | Yes | Yes |
+| O3 | Yes | Yes |
+| SO2 | Yes | Yes |
+| CO | Yes | Yes |
+
+## Sensor Attributes
+
+Most sensors include:
+
+- `confidence`: EPA confidence value for the reading.
+- `total_samples`: Number of samples used in that average.
+- `until`: Timestamp indicating validity/end of reading interval.
+
+Hourly sensors also include:
+
+- `data_source`: `1HR_AV` or `24HR_AV` (fallback when hourly data is unavailable or unreliable).
+
+Primary AQI sensors (`Hourly AQI`, `Daily AQI`) include:
+
+- `configured_source`: The strategy configured in options (`PM2.5` or `Overall`).
+- `aqi_source`: Which sub-index actually produced the current AQI value.
 
 This allows for templates such as the following simple example that uses the base (first sensor defined) and casts it to a float with a default value of the Brighton sensor - which, if it doesn't have a value, uses the Spotswood sensor
 
 ``` yaml
-  states('sensor.epa_air_quality_hourly_aqi') 
-         | float ( states('sensor.epa_air_quality_brighton_epa_air_quality_hourly_aqi') 
-                 | float ( states('sensor.epa_air_quality_spotswood_epa_air_quality_hourly_aqi') 
+  states('sensor.epa_air_quality_hourly_aqi')
+         | float ( states('sensor.epa_air_quality_brighton_epa_air_quality_hourly_aqi')
+                 | float ( states('sensor.epa_air_quality_spotswood_epa_air_quality_hourly_aqi')
                  )
             )
 ```
