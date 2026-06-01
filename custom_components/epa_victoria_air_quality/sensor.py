@@ -67,7 +67,6 @@ from .const import (
     TYPE_PM10_AQI_VALUE,
     TYPE_PM10_AQI_VALUE_24H,
     TYPE_PM25,
-    TYPE_PM25_24H,
     TYPE_PM25_AQI_VALUE,
     TYPE_PM25_AQI_VALUE_24H,
     TYPE_SO2,
@@ -78,6 +77,9 @@ from .const import (
     UNTIL,
 )
 from .coordinator import EPADataUpdateCoordinator
+
+# When enabled, sensor entities always write state updates to Recorder, even if the value has not changed.
+FORCE_UPDATE_SENSOR_HISTORY = False
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -120,25 +122,17 @@ def _measurement_description(
 
 
 SENSORS: dict[str, SensorEntityDescription] = {
-    TYPE_AQI_PM25: SensorEntityDescription(
+    TYPE_AQI_PM25: SensorEntityDescription(  # Text, so no state class or unit of measurement.
         key=TYPE_AQI_PM25,
         translation_key="pm25_aqi",
         name="Hourly Health Advice",
         icon="mdi:information-outline",
-        native_unit_of_measurement=None,
-        state_class=None,
-        suggested_display_precision=None,
-        suggested_unit_of_measurement=None,
     ),
-    TYPE_AQI_PM25_24H: SensorEntityDescription(
+    TYPE_AQI_PM25_24H: SensorEntityDescription(  # Text, so no state class or unit of measurement.
         key=TYPE_AQI_PM25_24H,
         translation_key="aqi_pm25_24h",
         name="Daily Health Advice",
         icon="mdi:information-outline",
-        native_unit_of_measurement=None,
-        state_class=None,
-        suggested_display_precision=None,
-        suggested_unit_of_measurement=None,
     ),
     TYPE_PM25: SensorEntityDescription(
         key=TYPE_PM25,
@@ -382,6 +376,7 @@ class EPAQualitySensor(CoordinatorEntity[EPADataUpdateCoordinator], SensorEntity
         self._collector: Collector = collector
         self._update_policy: SensorUpdatePolicy = get_sensor_update_policy()
         self._entry: EPAConfigEntry = entry
+        self._attr_force_update = FORCE_UPDATE_SENSOR_HISTORY
         if entry.options.get(CONF_LEGACY_UNIQUE_IDS, False):
             # Preserve the upstream unique ID format for entries migrated from v1/v2
             # so existing entity registry entries are not orphaned.

@@ -1,9 +1,11 @@
 """EPA API data collector that downloads the observation data."""
 
+from collections.abc import Mapping
 import datetime
 from datetime import datetime as dt
 import logging
 import traceback
+from typing import cast
 
 from aiohttp import ClientResponseError, ClientSession
 import aqi
@@ -150,6 +152,40 @@ POLLUTANT_AQI_CONSTANTS: dict[str, dict[str, str | None]] = {
     NAME_O3: {HOURLY: aqi.POLLUTANT_O3_1H, DAILY: None},
     NAME_SO2: {HOURLY: aqi.POLLUTANT_SO2_1H, DAILY: None},
     NAME_CO: {HOURLY: None, DAILY: None},
+}
+
+AQI_SENSOR_KEYS = {
+    TYPE_AQI,
+    TYPE_AQI_24H,
+    TYPE_AQI_OVERALL,
+    TYPE_AQI_OVERALL_24H,
+    TYPE_PM25_AQI_VALUE,
+    TYPE_PM25_AQI_VALUE_24H,
+    TYPE_PM10_AQI_VALUE,
+    TYPE_PM10_AQI_VALUE_24H,
+    TYPE_NO2_AQI_VALUE,
+    TYPE_O3_AQI_VALUE,
+    TYPE_SO2_AQI_VALUE,
+}
+
+MEASUREMENT_SENSOR_KEYS = {
+    TYPE_PM25,
+    TYPE_PM25_24H,
+    TYPE_PM10,
+    TYPE_PM10_24H,
+    TYPE_NO2,
+    TYPE_NO2_24H,
+    TYPE_O3,
+    TYPE_O3_24H,
+    TYPE_SO2,
+    TYPE_SO2_24H,
+    TYPE_CO,
+    TYPE_CO_24H,
+}
+
+STORED_FLOAT_PRECISION_BY_KEY = {
+    **dict.fromkeys(AQI_SENSOR_KEYS, 3),
+    **dict.fromkeys(MEASUREMENT_SENSOR_KEYS, 4),
 }
 
 
@@ -487,7 +523,11 @@ class Collector:
         summary_parts: list[str] = []
         for parameter in parameters:
             pollutant_name = str(parameter.get(PARAM_NAME, "unknown"))
-            for time_series_reading in parameter.get(TIME_SERIES_READINGS, []):
+            time_series_readings = parameter.get(TIME_SERIES_READINGS)
+            if not isinstance(time_series_readings, list):
+                continue
+
+            for time_series_reading in time_series_readings:
                 if not isinstance(time_series_reading, dict):
                     continue
                 time_series_name = time_series_reading.get(TIME_SERIES_NAME)
@@ -503,13 +543,11 @@ class Collector:
                     continue
 
                 summary_parts.append(
-                    (
-                        f"{pollutant_name}/{time_series_name}:"
-                        f"avg={reading.get(AVERAGE_VALUE)!r},"
-                        f"advice={reading.get(HEALTH_ADVICE)!r},"
-                        f"conf={reading.get(CONFIDENCE)!r},"
-                        f"sample={reading.get(TOTAL_SAMPLE)!r}"
-                    )
+                    f"{pollutant_name}/{time_series_name}:"
+                    f"avg={reading.get(AVERAGE_VALUE)!r},"
+                    f"advice={reading.get(HEALTH_ADVICE)!r},"
+                    f"conf={reading.get(CONFIDENCE)!r},"
+                    f"sample={reading.get(TOTAL_SAMPLE)!r}"
                 )
 
         site = self.site_name or self.site_id or "unknown_site"
@@ -520,22 +558,24 @@ class Collector:
 
     def _build_sensor_attributes(
         self,
-        reading: dict[str, str | float],
+        reading: Mapping[str, object],
         *,
         include_data_source: bool,
         source_label: str | None = None,
     ) -> dict[str, str | float]:
         """Build state attributes for a single reading-backed sensor."""
+        confidence_value = cast(str | float | int, reading.get(CONFIDENCE, 0) or 0)
+        sample_value = cast(str | float | int, reading.get(TOTAL_SAMPLE, 0) or 0)
         attributes: dict[str, str | float] = {
-            ATTR_CONFIDENCE: float(reading.get(CONFIDENCE, 0) or 0),
-            ATTR_TOTAL_SAMPLE: float(reading.get(TOTAL_SAMPLE, 0) or 0),
+            ATTR_CONFIDENCE: float(confidence_value),
+            ATTR_TOTAL_SAMPLE: float(sample_value),
             UNTIL: str(reading.get(UNTIL, "")),
         }
         if include_data_source:
             attributes[ATTR_DATA_SOURCE] = source_label or ""
         return attributes
 
-    def _calculate_aqi(self, pollutant_name: str, time_series_name: str, value: float | None) -> float | None:
+    def _calculate_aqi(self, pollutant_name: str, time_series_name: str, value: str | float | None) -> float | None:
         """Return the AQI for a pollutant/time series pair when supported."""
         if value is None:
             return None
@@ -546,12 +586,141 @@ class Collector:
         pollutant_constant = POLLUTANT_AQI_CONSTANTS.get(pollutant_name, {}).get(time_series_name)
         if pollutant_constant is None:
             return None
-        return float(aqi.to_aqi([(pollutant_constant, numeric_value)]))
+        try:
+            return float(aqi.to_aqi([(pollutant_constant, numeric_value)]))
+        except IndexError:
+            _LOGGER.debug(
+                "AQI calculation out of range for pollutant=%s series=%s value=%s",
+                pollutant_name,
+                time_series_name,
+                numeric_value,
+            )
+            return None
+
+    def _normalise_sensor_value(self, key: str | None, value: str | float | None) -> str | float | None:
+        """Round stored numeric sensor values to stable precision."""
+        if key is None or not isinstance(value, float):
+            return value
+        precision = STORED_FLOAT_PRECISION_BY_KEY.get(key)
+        return value if precision is None else round(value, precision)
+
+    def _collect_pollutant_readings(
+        self,
+        parameters: list[dict[str, object]],
+    ) -> dict[str, dict[str, dict[str, str | float | None]]]:
+        """Collect the first hourly and daily readings for each supported pollutant."""
+        pollutant_readings: dict[str, dict[str, dict[str, str | float | None]]] = {}
+        for parameter in parameters:
+            pollutant_name = parameter.get(PARAM_NAME)
+            if pollutant_name is None and len(parameters) == 1:
+                # Preserve backwards compatibility with older payloads/tests that only
+                # expose a single unnamed PM2.5 parameter block.
+                pollutant_name = NAME_PM25
+            if not isinstance(pollutant_name, str) or pollutant_name not in POLLUTANT_SENSOR_MAP:
+                continue
+
+            time_series_readings = parameter.get(TIME_SERIES_READINGS)
+            if not isinstance(time_series_readings, list):
+                continue
+
+            for time_series_reading in time_series_readings:
+                if not isinstance(time_series_reading, dict):
+                    continue
+
+                time_series_name = time_series_reading.get(TIME_SERIES_NAME)
+                readings = time_series_reading.get(READINGS)
+                if time_series_name not in (HOURLY, DAILY) or not isinstance(readings, list) or not readings:
+                    continue
+
+                first_reading = readings[0]
+                if not isinstance(first_reading, dict):
+                    continue
+
+                pollutant_readings.setdefault(pollutant_name, {})[time_series_name] = cast(
+                    dict[str, str | float | None],
+                    first_reading,
+                )
+
+        return pollutant_readings
+
+    def _process_pollutant_readings(
+        self,
+        pollutant_name: str,
+        readings_by_series: dict[str, dict[str, str | float | None]],
+        hourly_overall_candidates: list[tuple[str, str, float]],
+        daily_overall_candidates: list[tuple[str, str, float]],
+    ) -> None:
+        """Store readings for one pollutant across hourly and daily series."""
+        mapping = POLLUTANT_SENSOR_MAP[pollutant_name]
+
+        hourly_reading = readings_by_series.get(HOURLY)
+        if hourly_reading is not None:
+            hourly_value = cast(str | float | None, hourly_reading.get(AVERAGE_VALUE))
+            hourly_attributes = self._build_sensor_attributes(
+                hourly_reading,
+                include_data_source=True,
+                source_label=HOURLY,
+            )
+            self._set_observation(mapping["hourly_measure"], hourly_value, hourly_attributes)
+            if hourly_value is not None:
+                self._set_observation(mapping["hourly_advice"], hourly_reading.get(HEALTH_ADVICE), hourly_attributes)
+
+            hourly_aqi = self._calculate_aqi(pollutant_name, HOURLY, hourly_value)
+            self._set_observation(mapping["hourly_aqi"], hourly_aqi, hourly_attributes)
+            if mapping["hourly_aqi"] is not None and hourly_aqi is not None:
+                hourly_overall_candidates.append((mapping["hourly_aqi"], pollutant_name, hourly_aqi))
+
+        daily_reading = readings_by_series.get(DAILY)
+        if daily_reading is not None:
+            daily_value = cast(str | float | None, daily_reading.get(AVERAGE_VALUE))
+            daily_attributes = self._build_sensor_attributes(
+                daily_reading,
+                include_data_source=False,
+            )
+            self._set_observation(mapping["daily_measure"], daily_value, daily_attributes)
+            if daily_value is not None:
+                self._set_observation(mapping["daily_advice"], daily_reading.get(HEALTH_ADVICE), daily_attributes)
+
+            daily_aqi = self._calculate_aqi(pollutant_name, DAILY, daily_value)
+            self._set_observation(mapping["daily_aqi"], daily_aqi, daily_attributes)
+            if mapping["daily_aqi"] is not None and daily_aqi is not None:
+                daily_overall_candidates.append((mapping["daily_aqi"], pollutant_name, daily_aqi))
+
+        if (
+            pollutant_name == NAME_PM25
+            and daily_reading is not None
+            and (
+                hourly_reading is None
+                or float(hourly_reading.get(CONFIDENCE, 0) or 0) <= 0
+                or float(hourly_reading.get(TOTAL_SAMPLE, 0) or 0) <= 0
+            )
+        ):
+            # Preserve the existing PM2.5 fallback when hourly data is absent
+            # or considered unreliable by confidence/sample count.
+            fallback_value = daily_reading.get(AVERAGE_VALUE)
+            fallback_value = cast(str | float | None, fallback_value)
+            fallback_attributes = self._build_sensor_attributes(
+                daily_reading,
+                include_data_source=True,
+                source_label=DAILY,
+            )
+            self._set_observation(TYPE_PM25, fallback_value, fallback_attributes)
+            if fallback_value is not None:
+                self._set_observation(TYPE_AQI_PM25, daily_reading.get(HEALTH_ADVICE), fallback_attributes)
+            fallback_aqi = self._calculate_aqi(NAME_PM25, DAILY, fallback_value)
+            self._set_observation(TYPE_PM25_AQI_VALUE, fallback_aqi, fallback_attributes)
+            if fallback_aqi is not None:
+                hourly_overall_candidates.append((TYPE_PM25_AQI_VALUE, NAME_PM25, fallback_aqi))
+
+        if pollutant_name == NAME_PM25 and daily_reading is not None and daily_reading.get(AVERAGE_VALUE) is None:
+            # Retain explicit None for compatibility with legacy pm25_24h behavior.
+            self.observation_data[TYPE_PM25_24H] = None
 
     def _set_observation(self, key: str | None, value: str | float | None, attributes: dict[str, str | float]) -> None:
         """Store a sensor value and its attributes when the key/value is valid."""
         if isinstance(value, str) and value.strip().lower() == "unknown":
             value = None
+        value = self._normalise_sensor_value(key, value)
         if key is None or value is None:
             return
         self.observation_data[key] = value
@@ -578,7 +747,7 @@ class Collector:
         target_key = TYPE_AQI_OVERALL if time_series_name == HOURLY else TYPE_AQI_OVERALL_24H
         attributes = dict(self.sensor_attributes.get(source_key, {}))
         attributes["aqi_source"] = pollutant_name
-        self.observation_data[target_key] = value
+        self.observation_data[target_key] = cast(float, self._normalise_sensor_value(target_key, value))
         self.sensor_attributes[target_key] = attributes
         self.available_sensor_keys.add(target_key)
 
@@ -606,96 +775,26 @@ class Collector:
 
     async def extract_observation_data(self):
         """Extract Observation Data to individual fields."""
-        parameters: dict = {}
+        parameters: list[dict[str, object]] = []
         self.observation_data = {}
         self.sensor_attributes = {}
         self.available_sensor_keys = set()
-        if self.observations_data.get(PARAMETERS) is not None:
-            parameters = self.observations_data[PARAMETERS]
+        parameters_data = self.observations_data.get(PARAMETERS)
+        if isinstance(parameters_data, list):
+            parameters = [parameter for parameter in parameters_data if isinstance(parameter, dict)]
             self._log_api_readings_summary(parameters)
-            pollutant_readings: dict[str, dict[str, dict[str, str | float]]] = {}
-            for parameter in parameters:
-                pollutant_name = parameter.get(PARAM_NAME)
-                if pollutant_name is None and len(parameters) == 1:
-                    # Preserve backwards compatibility with older payloads/tests that only
-                    # expose a single unnamed PM2.5 parameter block.
-                    pollutant_name = NAME_PM25
-                if pollutant_name not in POLLUTANT_SENSOR_MAP:
-                    continue
-                for time_series_reading in parameter.get(TIME_SERIES_READINGS, []):
-                    time_series_name = time_series_reading.get(TIME_SERIES_NAME)
-                    readings = time_series_reading.get(READINGS, [])
-                    if time_series_name not in (HOURLY, DAILY) or not readings:
-                        continue
-                    pollutant_readings.setdefault(pollutant_name, {})[time_series_name] = readings[0]
+            pollutant_readings = self._collect_pollutant_readings(parameters)
 
             hourly_overall_candidates: list[tuple[str, str, float]] = []
             daily_overall_candidates: list[tuple[str, str, float]] = []
 
             for pollutant_name, readings_by_series in pollutant_readings.items():
-                mapping = POLLUTANT_SENSOR_MAP[pollutant_name]
-
-                hourly_reading = readings_by_series.get(HOURLY)
-                if hourly_reading is not None:
-                    hourly_value = hourly_reading.get(AVERAGE_VALUE)
-                    hourly_attributes = self._build_sensor_attributes(
-                        hourly_reading,
-                        include_data_source=True,
-                        source_label=HOURLY,
-                    )
-                    self._set_observation(mapping["hourly_measure"], hourly_value, hourly_attributes)
-                    if hourly_value is not None:
-                        self._set_observation(mapping["hourly_advice"], hourly_reading.get(HEALTH_ADVICE), hourly_attributes)
-
-                    hourly_aqi = self._calculate_aqi(pollutant_name, HOURLY, hourly_value)
-                    self._set_observation(mapping["hourly_aqi"], hourly_aqi, hourly_attributes)
-                    if mapping["hourly_aqi"] is not None and hourly_aqi is not None:
-                        hourly_overall_candidates.append((mapping["hourly_aqi"], pollutant_name, hourly_aqi))
-
-                daily_reading = readings_by_series.get(DAILY)
-                if daily_reading is not None:
-                    daily_value = daily_reading.get(AVERAGE_VALUE)
-                    daily_attributes = self._build_sensor_attributes(
-                        daily_reading,
-                        include_data_source=False,
-                    )
-                    self._set_observation(mapping["daily_measure"], daily_value, daily_attributes)
-                    if daily_value is not None:
-                        self._set_observation(mapping["daily_advice"], daily_reading.get(HEALTH_ADVICE), daily_attributes)
-
-                    daily_aqi = self._calculate_aqi(pollutant_name, DAILY, daily_value)
-                    self._set_observation(mapping["daily_aqi"], daily_aqi, daily_attributes)
-                    if mapping["daily_aqi"] is not None and daily_aqi is not None:
-                        daily_overall_candidates.append((mapping["daily_aqi"], pollutant_name, daily_aqi))
-
-                if (
-                    pollutant_name == NAME_PM25
-                    and daily_reading is not None
-                    and (
-                        hourly_reading is None
-                        or float(hourly_reading.get(CONFIDENCE, 0) or 0) <= 0
-                        or float(hourly_reading.get(TOTAL_SAMPLE, 0) or 0) <= 0
-                    )
-                ):
-                    # Preserve the existing PM2.5 fallback when hourly data is absent
-                    # or considered unreliable by confidence/sample count.
-                    fallback_value = daily_reading.get(AVERAGE_VALUE)
-                    fallback_attributes = self._build_sensor_attributes(
-                        daily_reading,
-                        include_data_source=True,
-                        source_label=DAILY,
-                    )
-                    self._set_observation(TYPE_PM25, fallback_value, fallback_attributes)
-                    if fallback_value is not None:
-                        self._set_observation(TYPE_AQI_PM25, daily_reading.get(HEALTH_ADVICE), fallback_attributes)
-                    fallback_aqi = self._calculate_aqi(NAME_PM25, DAILY, fallback_value)
-                    self._set_observation(TYPE_PM25_AQI_VALUE, fallback_aqi, fallback_attributes)
-                    if fallback_aqi is not None:
-                        hourly_overall_candidates.append((TYPE_PM25_AQI_VALUE, NAME_PM25, fallback_aqi))
-
-                if pollutant_name == NAME_PM25 and daily_reading is not None and daily_reading.get(AVERAGE_VALUE) is None:
-                    # Retain explicit None for compatibility with legacy pm25_24h behavior.
-                    self.observation_data[TYPE_PM25_24H] = None
+                self._process_pollutant_readings(
+                    pollutant_name,
+                    readings_by_series,
+                    hourly_overall_candidates,
+                    daily_overall_candidates,
+                )
 
             self._set_overall_aqi(HOURLY, hourly_overall_candidates)
             self._set_overall_aqi(DAILY, daily_overall_candidates)
