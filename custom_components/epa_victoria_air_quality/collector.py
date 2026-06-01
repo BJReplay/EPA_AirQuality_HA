@@ -8,7 +8,8 @@ import traceback
 from typing import cast
 
 from aiohttp import ClientResponseError, ClientSession
-import aqi
+import aqicalc as aqi
+# import aqi
 from geopy import distance
 
 from homeassistant.helpers.selector import SelectOptionDict
