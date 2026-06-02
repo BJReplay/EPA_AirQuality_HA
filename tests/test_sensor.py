@@ -151,50 +151,14 @@ async def test_sensor_friendly_name(hass: HomeAssistant) -> None:
 async def test_sensor_suggested_object_id(hass: HomeAssistant) -> None:
     """The suggested_object_id includes the site name to avoid UUID-heavy entity IDs."""
     sensor, _ = _make_sensor(hass)
-    assert sensor.suggested_object_id == f"epa_air_quality Test Site 1 {SENSORS[TYPE_AQI_PM25].name}"
-
-
-@pytest.mark.asyncio
-async def test_sensor_suggested_id_fallback(hass: HomeAssistant) -> None:
-    """When no site name is configured, the site ID is used in the suggested object ID."""
-    mock_collector = _make_mock_collector()
-    mock_coordinator = MagicMock(spec=EPADataUpdateCoordinator)
-    mock_coordinator.hass = hass
-    mock_coordinator.collector = mock_collector
-    mock_coordinator.get_version = "1.0"
-    mock_coordinator.async_add_listener = MagicMock(return_value=lambda: None)
-
-    entry = create_mock_config_entry(options={CONF_SITE_ID: TEST_SITE_ID_1})
-    entry.add_to_hass(hass)
-
-    sensor = EPAQualitySensor(mock_coordinator, SENSORS[TYPE_AQI_PM25], entry)
-    assert sensor.suggested_object_id == f"epa_air_quality {TEST_SITE_ID_1} {SENSORS[TYPE_AQI_PM25].name}"
-
-
-@pytest.mark.asyncio
-async def test_sensor_suggested_object_id_legacy(hass: HomeAssistant) -> None:
-    """Legacy entries keep upstream suggested_object_id behavior for existing users."""
-
-    legacy_options = {**DEFAULT_OPTIONS, CONF_LEGACY_UNIQUE_IDS: True}
-    entry = create_mock_config_entry(options=legacy_options)
-    entry.add_to_hass(hass)
-
-    mock_collector = _make_mock_collector()
-    mock_coordinator = MagicMock(spec=EPADataUpdateCoordinator)
-    mock_coordinator.hass = hass
-    mock_coordinator.collector = mock_collector
-    mock_coordinator.get_version = "1.0"
-    mock_coordinator.async_add_listener = MagicMock(return_value=lambda: None)
-
-    sensor = EPAQualitySensor(mock_coordinator, SENSORS[TYPE_AQI_PM25], entry)
-    assert sensor.suggested_object_id == f"epa_air_quality {SENSORS[TYPE_AQI_PM25].name}"
+    assert sensor.suggested_object_id == f"{SENSORS[TYPE_AQI_PM25].name}"
 
 
 def test_sensor_entity_defaults() -> None:
     """PM2.5/PM10 are enabled by default while secondary pollutants are opt-in."""
     assert SENSORS[TYPE_AQI_PM25].entity_registry_enabled_default is True
     assert SENSORS[TYPE_AQI_OVERALL].entity_registry_enabled_default is True
-    assert SENSORS[TYPE_PM10].entity_registry_enabled_default is True
+    assert SENSORS[TYPE_PM10].entity_registry_enabled_default is False
     assert SENSORS[TYPE_NO2].entity_registry_enabled_default is False
 
 

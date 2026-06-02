@@ -47,9 +47,11 @@ This integration supports multiple locations, so you can monitor more than one E
 
 The integration defines a broad entity set, but availability and default visibility depend on what the selected EPA site actually returns.
 
-- Enabled by default: PM2.5 family, PM10 family, primary AQI (`Hourly AQI`, `Daily AQI`), and `Overall AQI`.
-- Disabled by default (can be enabled manually): NO2/O3/SO2/CO families.
+- Enabled by default: PM2.5 family, primary AQI (`Hourly AQI`, `Daily AQI`), and `Overall AQI`.
+- Disabled-ish by default: PM10/NO2/O3/SO2/CO families.
 - If EPA does not provide a pollutant for a location at that time, those entities stay unavailable.
+
+The expression "disabled-ish" refers to integration behaviour that automatically enables entities when a value has been obtained for the location on either first configuration of that location, or at a later date should the capability be added to an EPA location. When a value can be obtained then both hourly and daily entities are enabled for that pollutant reading.
 
 ### AQI and AQI-derived entities
 

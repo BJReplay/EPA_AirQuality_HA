@@ -37,7 +37,6 @@ from .const import (
     CONF_AQI_SOURCE,
     CONF_LEGACY_UNIQUE_IDS,
     CONF_SITE_ID,
-    CONF_SITE_NAME,
     DOMAIN,
     MANUFACTURER,
     TYPE_AQI,
@@ -170,24 +169,36 @@ SENSORS: dict[str, SensorEntityDescription] = {
         "Hourly PM10",
         device_class=SensorDeviceClass.PM10,
         native_unit_of_measurement=CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
+        entity_registry_enabled_default=False,
     ),
     TYPE_PM10_24H: _measurement_description(
         TYPE_PM10_24H,
         "Daily PM10",
         device_class=SensorDeviceClass.PM10,
         native_unit_of_measurement=CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
+        entity_registry_enabled_default=False,
     ),
-    TYPE_PM10_AQI_VALUE: _aqi_description(TYPE_PM10_AQI_VALUE, "Hourly PM10 AQI"),
-    TYPE_PM10_AQI_VALUE_24H: _aqi_description(TYPE_PM10_AQI_VALUE_24H, "Daily PM10 AQI"),
+    TYPE_PM10_AQI_VALUE: _aqi_description(
+        TYPE_PM10_AQI_VALUE,
+        "Hourly PM10 AQI",
+        entity_registry_enabled_default=False,
+    ),
+    TYPE_PM10_AQI_VALUE_24H: _aqi_description(
+        TYPE_PM10_AQI_VALUE_24H,
+        "Daily PM10 AQI",
+        entity_registry_enabled_default=False,
+    ),
     TYPE_PM10_ADVICE: SensorEntityDescription(
         key=TYPE_PM10_ADVICE,
         name="Hourly PM10 Health Advice",
         icon="mdi:information-outline",
+        entity_registry_enabled_default=False,
     ),
     TYPE_PM10_ADVICE_24H: SensorEntityDescription(
         key=TYPE_PM10_ADVICE_24H,
         name="Daily PM10 Health Advice",
         icon="mdi:information-outline",
+        entity_registry_enabled_default=False,
     ),
     TYPE_NO2: _measurement_description(
         TYPE_NO2,
@@ -357,6 +368,7 @@ class EPAQualitySensor(CoordinatorEntity[EPADataUpdateCoordinator], SensorEntity
     """Representation of a EPA Air Quality sensor device."""
 
     _attr_attribution = ATTRIBUTION
+    _attr_has_entity_name = False
 
     def __init__(
         self,
@@ -477,16 +489,8 @@ class EPAQualitySensor(CoordinatorEntity[EPADataUpdateCoordinator], SensorEntity
             str: Suggested entity object ID.
 
         """
-        if self._entry.options.get(CONF_LEGACY_UNIQUE_IDS, False):
-            return f"epa_air_quality {self.entity_description.name}"
-
-        site_name = self._entry.options.get(CONF_SITE_NAME)
-        description_name = self.entity_description.name or self.sensor_name
-
-        if site_name:
-            return f"epa_air_quality {site_name} {description_name}"
-        site_id = self._entry.options.get(CONF_SITE_ID, self._entry.entry_id)
-        return f"epa_air_quality {site_id} {description_name}"
+        description_name = self.entity_description.name
+        return description_name if isinstance(description_name, str) else self.sensor_name
 
     @property
     def native_value(self) -> int | dt | float | str | bool | None:
