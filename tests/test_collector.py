@@ -1,13 +1,18 @@
 """Tests for the EPA Victoria Air Quality collector."""
 
 from typing import Any, Self
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from aiohttp import ClientResponseError, ContentTypeError, RequestInfo
 import pytest
 
 from homeassistant.components.epa_victoria_air_quality.collector import Collector
-from homeassistant.components.epa_victoria_air_quality.const import TYPE_AQI
+from homeassistant.components.epa_victoria_air_quality.const import (
+    AQI_SOURCE_OVERALL,
+    NAME_PM10,
+    TYPE_AQI,
+    TYPE_AQI_OVERALL,
+)
 
 from . import TEST_API_KEY_1, TEST_SITE_ID_1
 from .simulator.simulate import SimulatedEPA
@@ -245,6 +250,93 @@ def test_getters_site_not_found() -> None:
     assert c.get_sensor("anything") is None
 
 
+def test_get_sensor_attributes_no_site() -> None:
+    """When the site is not found, sensor attributes are empty."""
+    c = Collector(api_key=TEST_API_KEY_1, latitude=TEST_LAT, longitude=TEST_LON)
+    assert c.get_sensor_attributes("anything") == {}
+
+
+def test_log_api_readings_summary_none(caplog: pytest.LogCaptureFixture) -> None:
+    """An empty summary logs the explicit none message."""
+    c = Collector(api_key=TEST_API_KEY_1, latitude=TEST_LAT, longitude=TEST_LON)
+
+    with caplog.at_level("DEBUG"):
+        c._log_api_readings_summary([])
+
+    assert "API readings summary: none" in caplog.text
+
+
+def test_log_api_readings_summary_skips_bad(caplog: pytest.LogCaptureFixture) -> None:
+    """Odd log payloads are skipped."""
+    c = Collector(api_key=TEST_API_KEY_1, latitude=TEST_LAT, longitude=TEST_LON)
+
+    with caplog.at_level("DEBUG"):
+        c._log_api_readings_summary(
+            [
+                {"name": NAME_PM10, "timeSeriesReadings": "bad"},
+                {"name": NAME_PM10, "timeSeriesReadings": [None]},
+                {"name": NAME_PM10, "timeSeriesReadings": [{"timeSeriesName": "bad", "readings": [{"averageValue": 1.0}]}]},
+                {"name": NAME_PM10, "timeSeriesReadings": [{"timeSeriesName": "1HR_AV", "readings": []}]},
+                {"name": NAME_PM10, "timeSeriesReadings": [{"timeSeriesName": "1HR_AV", "readings": [None]}]},
+            ]
+        )
+
+    assert "API readings summary: none" in caplog.text
+
+
+def test_calculate_aqi_unsupported_series_none() -> None:
+    """Unsupported pollutant/time-series pairs skip AQI conversion."""
+    c = Collector(api_key=TEST_API_KEY_1, latitude=TEST_LAT, longitude=TEST_LON)
+    assert c._calculate_aqi("NO2", "24HR_AV", 1.0) is None
+
+
+def test_set_observation_rounds_measurement_values() -> None:
+    """Stored float sensor values are rounded to stable precision."""
+    c = Collector(api_key=TEST_API_KEY_1, latitude=TEST_LAT, longitude=TEST_LON)
+
+    c._set_observation("so2", 0.7411000000000001, {})
+
+    assert c.observation_data["so2"] == 0.7411
+
+
+def test_set_overall_aqi_rounds_value() -> None:
+    """Overall AQI values are rounded before being stored."""
+    c = Collector(api_key=TEST_API_KEY_1, latitude=TEST_LAT, longitude=TEST_LON)
+    c.sensor_attributes["pm10_aqi_value"] = {}
+
+    c._set_overall_aqi("1HR_AV", [("pm10_aqi_value", NAME_PM10, 42.1234)])
+
+    assert c.observation_data[TYPE_AQI_OVERALL] == 42.123
+
+
+def test_collect_pollutant_readings_skips_bad() -> None:
+    """Odd parameter payloads are ignored without raising."""
+    c = Collector(api_key=TEST_API_KEY_1, latitude=TEST_LAT, longitude=TEST_LON)
+
+    readings = c._collect_pollutant_readings(
+        [
+            {
+                "name": "Not supported",
+                "timeSeriesReadings": [{"timeSeriesName": "1HR_AV", "readings": [{"averageValue": 1.0}]}],
+            },
+            {
+                "name": "PM10",
+                "timeSeriesReadings": [None],
+            },
+            {
+                "name": "PM10",
+                "timeSeriesReadings": [{"timeSeriesName": "1HR_AV", "readings": []}],
+            },
+            {
+                "name": "PM10",
+                "timeSeriesReadings": [{"timeSeriesName": "1HR_AV", "readings": [None]}],
+            },
+        ]
+    )
+
+    assert readings == {}
+
+
 def test_getters_site_found() -> None:
     """Return populated values when site has been resolved."""
     c = Collector(
@@ -303,6 +395,22 @@ def test_get_sensor_key_error() -> None:
     assert result == "Sensor %s Not Found!"
 
 
+def test_calculate_aqi_handles_index_error() -> None:
+    """An IndexError from the AQI library is treated as missing AQI data."""
+    c = Collector(
+        api_key=TEST_API_KEY_1,
+        epa_site_id=TEST_SITE_ID_1,
+        latitude=TEST_LAT,
+        longitude=TEST_LON,
+    )
+
+    with patch(
+        "homeassistant.components.epa_victoria_air_quality.collector.aqi.to_aqi",
+        side_effect=IndexError("out of range"),
+    ):
+        assert c._calculate_aqi("O3", "1HR_AV", 14.0) is None
+
+
 @pytest.mark.asyncio
 async def test_extract_observation_data_normal() -> None:
     """Normal 1HR_AV+24HR_AV data with positive confidence is extracted correctly."""
@@ -318,7 +426,7 @@ async def test_extract_observation_data_normal() -> None:
     assert c.aqi > 0
     assert c.aqi_24h > 0
     assert c.pm25 > 0
-    assert c.pm25_24h > 0
+    assert c.pm25_24h > 0  # pyright: ignore[reportOptionalOperand]
     assert c.confidence == 0.95
     assert c.confidence_24h == 0.98
     assert c.data_source_1h == "1HR_AV"
@@ -425,6 +533,84 @@ async def test_extract_observation_data_24h_none_value() -> None:
 
 
 @pytest.mark.asyncio
+async def test_extract_observation_data_unknown_value_treated_as_missing() -> None:
+    """Literal 'Unknown' reading values are treated as missing data."""
+    c = Collector(
+        api_key=TEST_API_KEY_1,
+        epa_site_id=TEST_SITE_ID_1,
+        latitude=TEST_LAT,
+        longitude=TEST_LON,
+    )
+    c.observations_data = {
+        "parameters": [
+            {
+                "name": "PM10",
+                "timeSeriesReadings": [
+                    {
+                        "timeSeriesName": "1HR_AV",
+                        "readings": [
+                            {
+                                "averageValue": "Unknown",
+                                "healthAdvice": "Unknown",
+                                "until": "2024-01-01T12:00:00",
+                                "confidence": 0,
+                                "totalSample": 0,
+                            }
+                        ],
+                    }
+                ],
+            }
+        ]
+    }
+
+    await c.extract_observation_data()
+
+    assert c.get_sensor("pm10") is None
+    assert c.get_sensor("pm10_advice") is None
+    assert "pm10" not in c.get_available_sensor_keys()
+    assert "pm10_advice" not in c.get_available_sensor_keys()
+
+
+@pytest.mark.asyncio
+async def test_extract_observation_data_logs_api_readings_summary(caplog: pytest.LogCaptureFixture) -> None:
+    """Raw API readings are logged as a single DEBUG summary line."""
+    c = Collector(
+        api_key=TEST_API_KEY_1,
+        epa_site_id=TEST_SITE_ID_1,
+        latitude=TEST_LAT,
+        longitude=TEST_LON,
+    )
+    c.site_name = "Test Site"
+    c.observations_data = {
+        "parameters": [
+            {
+                "name": "PM10",
+                "timeSeriesReadings": [
+                    {
+                        "timeSeriesName": "1HR_AV",
+                        "readings": [
+                            {
+                                "averageValue": "Unknown",
+                                "healthAdvice": "Unknown",
+                                "until": "2024-01-01T12:00:00",
+                                "confidence": 0,
+                                "totalSample": 0,
+                            }
+                        ],
+                    }
+                ],
+            }
+        ]
+    }
+
+    with caplog.at_level("DEBUG"):
+        await c.extract_observation_data()
+
+    assert "Test Site API readings summary:" in caplog.text
+    assert "PM10/1HR_AV:avg='Unknown'" in caplog.text
+
+
+@pytest.mark.asyncio
 async def test_extract_observation_data_no_valid_readings_logs_warning(caplog: pytest.LogCaptureFixture) -> None:
     """When PARAMETERS present but pm25_24h is None and confidence is zero, a warning is logged once."""
     null_readings = {
@@ -512,6 +698,106 @@ async def test_extract_observation_data_no_parameters() -> None:
     c.observations_data = {}
     await c.extract_observation_data()
     assert c.observation_data == {}
+
+
+@pytest.mark.asyncio
+async def test_extract_observation_data_overall_primary() -> None:
+    """Overall AQI source sets the primary AQI directly from the overall candidate."""
+    c = Collector(
+        api_key=TEST_API_KEY_1,
+        epa_site_id=TEST_SITE_ID_1,
+        latitude=TEST_LAT,
+        longitude=TEST_LON,
+        aqi_source=AQI_SOURCE_OVERALL,
+    )
+    c.observations_data = {
+        "parameters": [
+            {
+                "name": NAME_PM10,
+                "timeSeriesReadings": [
+                    {
+                        "timeSeriesName": "1HR_AV",
+                        "readings": [
+                            {
+                                "averageValue": 9.0,
+                                "healthAdvice": "Good",
+                                "until": "2024-01-01T12:00:00",
+                                "confidence": 0.95,
+                                "totalSample": 12.0,
+                            }
+                        ],
+                    },
+                    {
+                        "timeSeriesName": "24HR_AV",
+                        "readings": [
+                            {
+                                "averageValue": 10.0,
+                                "healthAdvice": "Good",
+                                "until": "2024-01-01T12:00:00",
+                                "confidence": 0.98,
+                                "totalSample": 288.0,
+                            }
+                        ],
+                    },
+                ],
+            }
+        ]
+    }
+
+    await c.extract_observation_data()
+
+    assert c.observation_data[TYPE_AQI] == c.observation_data[TYPE_AQI_OVERALL]
+    assert c.observation_data[TYPE_AQI] > 0
+
+
+@pytest.mark.asyncio
+async def test_extract_observation_data_overall_fallback_primary() -> None:
+    """When the overall AQI exists but the primary AQI does not, the fallback path copies it over."""
+    c = Collector(
+        api_key=TEST_API_KEY_1,
+        epa_site_id=TEST_SITE_ID_1,
+        latitude=TEST_LAT,
+        longitude=TEST_LON,
+    )
+    c.observations_data = {
+        "parameters": [
+            {
+                "name": NAME_PM10,
+                "timeSeriesReadings": [
+                    {
+                        "timeSeriesName": "1HR_AV",
+                        "readings": [
+                            {
+                                "averageValue": 9.0,
+                                "healthAdvice": "Good",
+                                "until": "2024-01-01T12:00:00",
+                                "confidence": 0.95,
+                                "totalSample": 12.0,
+                            }
+                        ],
+                    },
+                    {
+                        "timeSeriesName": "24HR_AV",
+                        "readings": [
+                            {
+                                "averageValue": 10.0,
+                                "healthAdvice": "Good",
+                                "until": "2024-01-01T12:00:00",
+                                "confidence": 0.98,
+                                "totalSample": 288.0,
+                            }
+                        ],
+                    },
+                ],
+            }
+        ]
+    }
+
+    await c.extract_observation_data()
+
+    assert TYPE_AQI_OVERALL in c.observation_data
+    assert TYPE_AQI in c.observation_data
+    assert c.observation_data[TYPE_AQI] == c.observation_data[TYPE_AQI_OVERALL]
 
 
 @pytest.mark.asyncio

@@ -10,8 +10,10 @@ from homeassistant.components.epa_victoria_air_quality.config_flow import (
     EPAVicOptionFlowHandler,
 )
 from homeassistant.components.epa_victoria_air_quality.const import (
+    CONF_AQI_SOURCE,
     CONF_SITE_ID,
     CONF_SITE_NAME,
+    DEFAULT_AQI_SOURCE,
     DOMAIN,
 )
 from homeassistant.const import CONF_API_KEY
@@ -59,6 +61,7 @@ async def test_full_user_flow(hass: HomeAssistant) -> None:
             CONF_API_KEY: TEST_API_KEY_1,
             CONF_SITE_ID: TEST_SITE_ID_1,
             CONF_SITE_NAME: "Test Site",
+            CONF_AQI_SOURCE: DEFAULT_AQI_SOURCE,
         }
 
 
@@ -96,6 +99,7 @@ async def test_options_flow(hass: HomeAssistant) -> None:
         assert result.get("data", {}).get(CONF_API_KEY) == TEST_API_KEY_2
         assert result.get("data", {}).get(CONF_SITE_ID) == TEST_SITE_ID_2
         assert result.get("data", {}).get(CONF_SITE_NAME) == TEST_SITE_NAME_2
+        assert result.get("data", {}).get(CONF_AQI_SOURCE) == DEFAULT_AQI_SOURCE
 
 
 @pytest.mark.asyncio
