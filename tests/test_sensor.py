@@ -149,13 +149,13 @@ async def test_sensor_friendly_name(hass: HomeAssistant) -> None:
 
 @pytest.mark.asyncio
 async def test_sensor_suggested_object_id(hass: HomeAssistant) -> None:
-    """The suggested_object_id includes the site name to avoid UUID-heavy entity IDs."""
+    """The suggested_object_id does not include the site name or anything else."""
     sensor, _ = _make_sensor(hass)
     assert sensor.suggested_object_id == f"{SENSORS[TYPE_AQI_PM25].name}"
 
 
 def test_sensor_entity_defaults() -> None:
-    """PM2.5/PM10 are enabled by default while secondary pollutants are opt-in."""
+    """PM2.5/overall are enabled by default while secondary pollutants are enabled as available."""
     assert SENSORS[TYPE_AQI_PM25].entity_registry_enabled_default is True
     assert SENSORS[TYPE_AQI_OVERALL].entity_registry_enabled_default is True
     assert SENSORS[TYPE_PM10].entity_registry_enabled_default is False
