@@ -1,5 +1,7 @@
 """Support for EPA Air Quality, initialisation."""
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 import logging
 
