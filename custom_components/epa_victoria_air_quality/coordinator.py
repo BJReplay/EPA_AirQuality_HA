@@ -1,19 +1,32 @@
 """The EPA VIC Air Quality coordinator."""
 
+from __future__ import annotations
+
+from dataclasses import dataclass
 import logging
 from typing import Any
 
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import debounce, device_registry as dr, entity_registry as er
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .collector import Collector
 from .const import CONF_LEGACY_UNIQUE_IDS, CONF_SITE_ID, DOMAIN, SCAN_INTERVAL
-from .util import EPAData
 
 _LOGGER = logging.getLogger(__name__)
 
+
+@dataclass
+class EPAData:
+    """EPA options for the integration."""
+
+    coordinator: EPADataUpdateCoordinator
+    other_data: EPAConfigEntry
+
+
 type EPAConfigEntry = ConfigEntry[EPAData]
+
 
 class EPADataUpdateCoordinator(DataUpdateCoordinator):
     """Data update coordinator for EPA Air Quality API."""

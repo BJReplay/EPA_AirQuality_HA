@@ -1,5 +1,7 @@
 """Support for EPA (Victoria) Air Quality Sensors."""
 
+from __future__ import annotations
+
 from datetime import datetime as dt
 from enum import Enum
 import logging

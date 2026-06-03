@@ -24,14 +24,14 @@ from .const import (
     DOMAIN,
     TITLE,
 )
-from .coordinator import EPADataUpdateCoordinator
-from .util import EPAData
+from .coordinator import EPAData, EPADataUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS = [Platform.SENSOR]
 
 type EPAConfigEntry = ConfigEntry[EPAData]
+
 
 async def async_migrate_entry(hass: HomeAssistant, entry: EPAConfigEntry) -> bool:
     """Migrate old entry."""

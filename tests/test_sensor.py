@@ -10,7 +10,6 @@ from homeassistant.components.epa_victoria_air_quality.const import (
     ATTR_DATA_SOURCE,
     ATTR_TOTAL_SAMPLE,
     CONF_LEGACY_UNIQUE_IDS,
-    CONF_SITE_ID,
     TYPE_AQI_OVERALL,
     TYPE_AQI_PM25,
     TYPE_AQI_PM25_24H,

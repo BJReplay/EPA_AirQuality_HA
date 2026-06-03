@@ -27,13 +27,12 @@ def _make_coordinator(hass: HomeAssistant) -> EPADataUpdateCoordinator:
     mock_collector.async_setup = AsyncMock(return_value=None)
     entry = create_mock_config_entry()
     entry.add_to_hass(hass)
-    coordinator = EPADataUpdateCoordinator(
+    return EPADataUpdateCoordinator(
         hass=hass,
         collector=mock_collector,
         version="1.0",
         config_entry=entry,
     )
-    return coordinator
 
 
 @pytest.mark.asyncio
@@ -145,7 +144,7 @@ async def test_get_version_property(hass: HomeAssistant) -> None:
 async def test_auto_enable_without_config_entry(hass: HomeAssistant) -> None:
     """Auto-enable exits immediately when no config entry is attached."""
     coordinator = _make_coordinator(hass)
-    coordinator.config_entry = None
+    coordinator.config_entry = None  # pyright: ignore[reportAttributeAccessIssue]
     coordinator.collector.get_available_sensor_keys = MagicMock(return_value=[TYPE_NO2])
     coordinator._auto_enable_available_sensors()
     coordinator.collector.get_available_sensor_keys.assert_not_called()
