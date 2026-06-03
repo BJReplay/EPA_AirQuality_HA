@@ -31,9 +31,8 @@ def _make_coordinator(hass: HomeAssistant) -> EPADataUpdateCoordinator:
         hass=hass,
         collector=mock_collector,
         version="1.0",
+        config_entry=entry,
     )
-    # Attach config_entry
-    coordinator.config_entry = entry
     return coordinator
 
 
