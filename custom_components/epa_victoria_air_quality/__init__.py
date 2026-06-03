@@ -1,7 +1,5 @@
 """Support for EPA Air Quality, initialisation."""
 
-from __future__ import annotations
-
 import logging
 
 from aiohttp.client_exceptions import ClientConnectorError

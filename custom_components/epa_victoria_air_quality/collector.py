@@ -1,7 +1,5 @@
 """EPA API data collector that downloads the observation data."""
 
-from __future__ import annotations
-
 from collections.abc import Mapping
 import datetime
 from datetime import datetime as dt
