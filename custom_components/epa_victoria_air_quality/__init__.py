@@ -50,9 +50,10 @@ async def async_migrate_entry(hass: HomeAssistant, entry: EPAConfigEntry) -> boo
             new_options = dict(entry.options)
             if not new_options.get(CONF_SITE_ID):
                 new_options[CONF_SITE_ID] = site_id
-                api_key = entry.data.get(CONF_API_KEY, "")
-                if api_key and not new_options.get(CONF_API_KEY):
-                    new_options[CONF_API_KEY] = api_key
+            # Migrate api_key from data
+            api_key = entry.data.get(CONF_API_KEY, "")
+            if api_key and not new_options.get(CONF_API_KEY):
+                new_options[CONF_API_KEY] = api_key
             # Mark this entry as using legacy unique IDs so sensor.py preserves
             # the upstream format (epavic_epa_api_{name}) and avoids breaking
             # existing entity registry entries for single-site installs.
