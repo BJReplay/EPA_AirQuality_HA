@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import logging
 
 from aiohttp.client_exceptions import ClientConnectorError
@@ -26,13 +25,13 @@ from .const import (
     TITLE,
 )
 from .coordinator import EPADataUpdateCoordinator
+from .util import EPAData
 
 _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS = [Platform.SENSOR]
 
 type EPAConfigEntry = ConfigEntry[EPAData]
-
 
 async def async_migrate_entry(hass: HomeAssistant, entry: EPAConfigEntry) -> bool:
     """Migrate old entry."""
@@ -117,8 +116,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: EPAConfigEntry) -> bool:
         aqi_source=options.get(CONF_AQI_SOURCE, DEFAULT_AQI_SOURCE),
     )
     collector.site_name = options.get(CONF_SITE_NAME, "")
-    coordinator: EPADataUpdateCoordinator = EPADataUpdateCoordinator(hass=hass, collector=collector, version=ua_version)
-
+    coordinator: EPADataUpdateCoordinator = EPADataUpdateCoordinator(hass=hass, collector=collector, version=ua_version, config_entry=entry)
     entry.runtime_data = EPAData(coordinator, entry)
 
     _LOGGER.debug("Successful init")
@@ -238,11 +236,3 @@ async def async_remove_config_entry_device(hass: HomeAssistant, entry: ConfigEnt
     device_registry = dr.async_get(hass)
     device_registry.async_remove_device(device.id)
     return True
-
-
-@dataclass
-class EPAData:
-    """EPA options for the integration."""
-
-    coordinator: EPADataUpdateCoordinator
-    other_data: EPAConfigEntry

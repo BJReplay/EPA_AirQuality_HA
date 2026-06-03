@@ -9,18 +9,21 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .collector import Collector
 from .const import CONF_LEGACY_UNIQUE_IDS, CONF_SITE_ID, DOMAIN, SCAN_INTERVAL
+from .util import EPAData
 
 _LOGGER = logging.getLogger(__name__)
 
+type EPAConfigEntry = ConfigEntry[EPAData]
 
 class EPADataUpdateCoordinator(DataUpdateCoordinator):
     """Data update coordinator for EPA Air Quality API."""
 
-    def __init__(self, hass: HomeAssistant, collector: Collector, version: str) -> None:
+    def __init__(self, hass: HomeAssistant, collector: Collector, version: str, config_entry: EPAConfigEntry) -> None:
         """Initialise the data update coordinator."""
         self.collector = collector
         self._version: str = version
         self._hass: HomeAssistant = hass
+        self.config_entry = config_entry
 
         DEBOUNCE_TIME = 60  # in seconds
 
@@ -32,6 +35,7 @@ class EPADataUpdateCoordinator(DataUpdateCoordinator):
             setup_method=self.collector.async_setup,
             update_interval=SCAN_INTERVAL,  # EPA Updates roughly once every 30 minutes, so default 15 is reasonably aggressive.
             request_refresh_debouncer=debounce.Debouncer(hass, _LOGGER, cooldown=DEBOUNCE_TIME, immediate=True),
+            config_entry=config_entry,
         )
 
         self.entity_registry_updated_unsub = self.hass.bus.async_listen(er.EVENT_ENTITY_REGISTRY_UPDATED, self.entity_registry_updated)
