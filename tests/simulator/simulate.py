@@ -202,6 +202,7 @@ class SimulatedEPA:
         """Build the full parameters response for a site."""
         pm25_1h = self._generate_pm25(site_id)
         pm25_24h = self._generate_pm25_24h(site_id)
+        site_type = SITES[site_id]["siteType"]
 
         time_series: list[dict[str, Any]] = [
             {
@@ -215,6 +216,7 @@ class SimulatedEPA:
         ]
 
         return {
+            "siteType": site_type,
             "parameters": [
                 {
                     "timeSeriesReadings": time_series,

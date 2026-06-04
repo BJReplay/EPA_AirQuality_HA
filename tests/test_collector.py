@@ -12,6 +12,8 @@ from homeassistant.components.epa_victoria_air_quality.const import (
     NAME_PM10,
     TYPE_AQI,
     TYPE_AQI_OVERALL,
+    TYPE_AQI_PM25,
+    TYPE_PM25,
 )
 
 from . import TEST_API_KEY_1, TEST_SITE_ID_1
@@ -594,6 +596,61 @@ async def test_extract_observation_data_unknown_value_treated_as_missing() -> No
     assert c.get_sensor("pm10_advice") is None
     assert "pm10" not in c.get_available_sensor_keys()
     assert "pm10_advice" not in c.get_available_sensor_keys()
+
+
+@pytest.mark.asyncio
+async def test_extract_observation_data_indicative_pm25() -> None:
+    """Sensor-site payload name 'Particles' is treated as PM2.5 readings."""
+    c = Collector(
+        api_key=TEST_API_KEY_1,
+        epa_site_id=TEST_SITE_ID_1,
+        latitude=TEST_LAT,
+        longitude=TEST_LON,
+    )
+    c.observations_data = {
+        "siteType": "Sensor",
+        "parameters": [
+            {
+                "name": "Particles",
+                "timeSeriesReadings": [
+                    {
+                        "timeSeriesName": "1HR_AV",
+                        "readings": [
+                            {
+                                "averageValue": 5.6,
+                                "healthAdvice": "Good",
+                                "until": "2026-06-04T09:00:00Z",
+                                "confidence": "100",
+                                "totalSample": "12",
+                            }
+                        ],
+                    },
+                    {
+                        "timeSeriesName": "24HR_AV",
+                        "readings": [
+                            {
+                                "averageValue": 5.71,
+                                "healthAdvice": "Good",
+                                "until": "2026-06-04T09:00:00Z",
+                                "confidence": "100",
+                                "totalSample": "288",
+                            }
+                        ],
+                    },
+                ],
+            }
+        ],
+    }
+
+    await c.extract_observation_data()
+
+    assert c.get_sensor(TYPE_PM25) == 5.6
+    assert c.get_sensor(TYPE_AQI_PM25) == "Good"
+    assert TYPE_PM25 in c.get_available_sensor_keys()
+    assert TYPE_AQI_PM25 in c.get_available_sensor_keys()
+    hourly_attrs = c.get_sensor_attributes(TYPE_PM25)
+    assert hourly_attrs.get("monitoring_site_type") == "sensor"
+    assert hourly_attrs.get("measurement_quality") == "indicative"
 
 
 @pytest.mark.asyncio

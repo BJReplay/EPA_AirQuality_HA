@@ -188,6 +188,11 @@ STORED_FLOAT_PRECISION_BY_KEY = {
     **dict.fromkeys(MEASUREMENT_SENSOR_KEYS, 4),
 }
 
+ATTR_MONITORING_SITE_TYPE = "monitoring_site_type"
+ATTR_MEASUREMENT_QUALITY = "measurement_quality"
+MEASUREMENT_QUALITY_INDICATIVE = "indicative"
+MEASUREMENT_QUALITY_STANDARD = "standard"
+
 
 class Collector:
     """Collector for PyEPA."""
@@ -573,6 +578,14 @@ class Collector:
         }
         if include_data_source:
             attributes[ATTR_DATA_SOURCE] = source_label or ""
+        site_type = str(self.observations_data.get(SITE_TYPE, "") or "").strip()
+        if site_type:
+            site_type_lower = site_type.casefold()
+            attributes[ATTR_MONITORING_SITE_TYPE] = site_type_lower
+            if site_type_lower == SITE_TYPE_SENSOR.casefold():
+                attributes[ATTR_MEASUREMENT_QUALITY] = MEASUREMENT_QUALITY_INDICATIVE
+            elif site_type_lower == SITE_TYPE_STANDARD.casefold():
+                attributes[ATTR_MEASUREMENT_QUALITY] = MEASUREMENT_QUALITY_STANDARD
         return attributes
 
     def _calculate_aqi(self, pollutant_name: str, time_series_name: str, value: str | float | None) -> float | None:
@@ -615,6 +628,9 @@ class Collector:
             if pollutant_name is None and len(parameters) == 1:
                 # Preserve backwards compatibility with older payloads/tests that only
                 # expose a single unnamed PM2.5 parameter block.
+                pollutant_name = NAME_PM25
+            elif isinstance(pollutant_name, str) and pollutant_name.strip().casefold() == "particles":
+                # EPA sensor-only sites can expose PM2.5 payloads as "Particles".
                 pollutant_name = NAME_PM25
             if not isinstance(pollutant_name, str) or pollutant_name not in POLLUTANT_SENSOR_MAP:
                 continue
