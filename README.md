@@ -43,6 +43,10 @@ Thanks to @autoSteve who provided much of the python knowledge and assistance ov
 
 This integration supports multiple locations, so you can monitor more than one EPA station in Home Assistant.
 
+## Location differences
+
+There are (at time of writing) 19 "standard" locations providing accurate PM2.5 pollutant data, and in may cases even more data. There are also many more "sensor" locations, and these provide an indicative air particle content. These locations are differentiated by the label "(sensor/indicative)", and provide a generally lower quality guidance.
+
 ## Entities Exposed By This Integration
 
 The integration defines a broad entity set, but availability and default visibility depend on what the selected EPA site actually returns.
