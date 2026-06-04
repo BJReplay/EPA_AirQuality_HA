@@ -137,9 +137,29 @@ async def test_sensor_init_key_error(hass: HomeAssistant) -> None:
 
 @pytest.mark.asyncio
 async def test_sensor_name(hass: HomeAssistant) -> None:
-    """The name property combines the entry title with the measurement description."""
+    """The name property returns only the measurement description."""
     sensor, _ = _make_sensor(hass)
-    assert sensor.name == f"{sensor._entry.title} {SENSORS[TYPE_AQI_PM25].name}"
+    assert sensor.name == str(SENSORS[TYPE_AQI_PM25].name)
+
+
+@pytest.mark.asyncio
+async def test_sensor_name_strips_sensor_suffix(hass: HomeAssistant) -> None:
+    """Sensor name does not include entry-title metadata such as suffixes."""
+    mock_collector = _make_mock_collector()
+    mock_coordinator = MagicMock(spec=EPADataUpdateCoordinator)
+    mock_coordinator.hass = hass
+    mock_coordinator.collector = mock_collector
+    mock_coordinator.get_version = "1.0"
+    mock_coordinator.async_add_listener = MagicMock(return_value=lambda: None)
+
+    entry = create_mock_config_entry()
+    entry.add_to_hass(hass)
+    hass.config_entries.async_update_entry(entry, title="EPA Air Quality - Sale (sensor/indicative)")
+
+    sensor = EPAQualitySensor(mock_coordinator, SENSORS[TYPE_AQI_PM25], entry)
+
+    assert sensor.name == str(SENSORS[TYPE_AQI_PM25].name)
+    assert sensor.unique_id == f"epavic_epa_api_{TEST_SITE_ID_1}_{SENSORS[TYPE_AQI_PM25].name}"
 
 
 @pytest.mark.asyncio

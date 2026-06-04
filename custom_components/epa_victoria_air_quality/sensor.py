@@ -464,15 +464,11 @@ class EPAQualitySensor(CoordinatorEntity[EPADataUpdateCoordinator], SensorEntity
     def name(self) -> str:
         """Return the name of the sensor.
 
-        Combines the entry title (which contains the location) with the
-        measurement description so that the full friendly name is shown in
-        the UI without relying on ``_attr_has_entity_name``.
-
         Returns:
-            str: Full sensor name including location.
+            str: Sensor name.
 
         """
-        return f"{self._entry.title} {self.entity_description.name}"
+        return str(self.entity_description.name)
 
     @property
     def friendly_name(self) -> str:

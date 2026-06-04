@@ -10,6 +10,7 @@ from homeassistant.components.epa_victoria_air_quality.collector import Collecto
 from homeassistant.components.epa_victoria_air_quality.const import (
     AQI_SOURCE_OVERALL,
     NAME_PM10,
+    SITE_TYPE_SENSOR_LABEL_SUFFIX,
     TYPE_AQI,
     TYPE_AQI_OVERALL,
     TYPE_AQI_PM25,
@@ -163,6 +164,8 @@ async def test_get_locations_list_success() -> None:
     assert len(c.locations_list) > 0
     site_ids = [loc["value"] for loc in c.locations_list]
     assert "10004" not in site_ids
+    sensor_site_label = next(str(loc["label"]) for loc in c.locations_list if loc["value"] == "10002")
+    assert sensor_site_label.endswith(SITE_TYPE_SENSOR_LABEL_SUFFIX)
 
 
 @pytest.mark.asyncio

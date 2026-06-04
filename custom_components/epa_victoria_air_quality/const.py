@@ -106,5 +106,6 @@ SITE_TYPE: Final = "siteType"
 SITE_TYPE_SENSOR: Final = "Sensor"
 SITE_TYPE_STANDARD: Final = "Standard"
 SITE_TYPE_CAMERA: Final = "Camera"
+SITE_TYPE_SENSOR_LABEL_SUFFIX: Final = " (sensor/indicative)"
 SITE_HEALTH_ADVICES: Final = "siteHealthAdvices"
 SCAN_INTERVAL: Final = timedelta(minutes=15)

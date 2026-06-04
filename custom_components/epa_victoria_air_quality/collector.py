@@ -43,6 +43,7 @@ from .const import (
     SITE_NAME,
     SITE_TYPE,
     SITE_TYPE_SENSOR,
+    SITE_TYPE_SENSOR_LABEL_SUFFIX,
     SITE_TYPE_STANDARD,
     TIME_SERIES_NAME,
     TIME_SERIES_READINGS,
@@ -288,7 +289,11 @@ class Collector:
                         records = locations_list[RECORDS]
                         for record in records:
                             site_id = record[SITE_ID]
-                            site_name = record[SITE_NAME]
+                            site_name = (
+                                (record[SITE_NAME] + SITE_TYPE_SENSOR_LABEL_SUFFIX)
+                                if record[SITE_TYPE] == SITE_TYPE_SENSOR
+                                else record[SITE_NAME]
+                            )
                             site_type = record[SITE_TYPE]
                             if site_type in (
                                 SITE_TYPE_SENSOR,
