@@ -98,6 +98,8 @@ Most sensors include:
 - `confidence`: EPA confidence value for the reading.
 - `total_samples`: Number of samples used in that average.
 - `until`: Timestamp indicating validity/end of reading interval.
+- `monitoring_site_type`: Whether the site is a 'standard' or 'sensor' location.
+- `measurement_quality`: Either 'standard' for a standard location, or 'indicative' for a sensor location.
 
 Hourly sensors also include:
 
