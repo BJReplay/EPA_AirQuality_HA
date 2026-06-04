@@ -9,6 +9,7 @@ from homeassistant import loader
 from homeassistant.components.epa_victoria_air_quality import (
     async_migrate_entry,
     async_remove_config_entry_device,
+    async_update_options,
     get_version,
 )
 from homeassistant.components.epa_victoria_air_quality.const import (
@@ -23,11 +24,17 @@ from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant
 
-from . import TEST_API_KEY_1, TEST_SITE_ID_1, TEST_SITE_NAME_1, create_mock_config_entry
+from . import (
+    TEST_API_KEY_1,
+    TEST_API_KEY_2,
+    TEST_SITE_ID_1,
+    TEST_SITE_NAME_1,
+    create_mock_config_entry,
+)
 
 
 @pytest.mark.asyncio
-async def test_async_migrate_entry_version_1_to_4(hass: HomeAssistant) -> None:
+async def test_migrate_entry_version_1_to_4(hass: HomeAssistant) -> None:
     """Migrating a v1 entry moves config to options, sets unique_id/title, and adds AQI source default."""
     mock_entry = MagicMock()
     mock_entry.version = 1
@@ -51,7 +58,7 @@ async def test_async_migrate_entry_version_1_to_4(hass: HomeAssistant) -> None:
 
 
 @pytest.mark.asyncio
-async def test_async_migrate_entry_version_3_to_4(hass: HomeAssistant) -> None:
+async def test_migrate_entry_version_3_to_4(hass: HomeAssistant) -> None:
     """A version-3 entry is migrated to v4 with the default AQI source."""
     mock_entry = MagicMock()
     mock_entry.version = 3
@@ -68,7 +75,7 @@ async def test_async_migrate_entry_version_3_to_4(hass: HomeAssistant) -> None:
 
 
 @pytest.mark.asyncio
-async def test_async_migrate_entry_options_already_has_site_id(hass: HomeAssistant) -> None:
+async def test_migrate_entry_already_has_site_id(hass: HomeAssistant) -> None:
     """Migration skips the data→options copy when CONF_SITE_ID is already in options."""
     mock_entry = MagicMock()
     mock_entry.version = 1
@@ -91,7 +98,7 @@ async def test_async_migrate_entry_options_already_has_site_id(hass: HomeAssista
 
 
 @pytest.mark.asyncio
-async def test_async_setup_entry_client_connector_error(hass: HomeAssistant) -> None:
+async def test_setup_entry_client_connector_error(hass: HomeAssistant) -> None:
     """Entry enters SETUP_RETRY when collector.async_update raises ClientConnectorError."""
     entry = create_mock_config_entry()
     entry.add_to_hass(hass)
@@ -108,7 +115,7 @@ async def test_async_setup_entry_client_connector_error(hass: HomeAssistant) -> 
 
 
 @pytest.mark.asyncio
-async def test_async_setup_entry_sets_collector_site_name(hass: HomeAssistant) -> None:
+async def test_setup_entry_sets_collector_site_name(hass: HomeAssistant) -> None:
     """Setup seeds the collector with the saved selected site name."""
     entry = create_mock_config_entry()
     entry.add_to_hass(hass)
@@ -125,7 +132,7 @@ async def test_async_setup_entry_sets_collector_site_name(hass: HomeAssistant) -
 
 
 @pytest.mark.asyncio
-async def test_async_setup_entry_resolves_site_name_for_migrated_entry(hass: HomeAssistant) -> None:
+async def test_setup_entry_resolves_site_name_for_migrated_entry(hass: HomeAssistant) -> None:
     """Setup resolves and stores a human-readable site name for entries that lack CONF_SITE_NAME."""
     # Simulate a migrated entry: options only have CONF_API_KEY and CONF_SITE_ID.
     entry = create_mock_config_entry(
@@ -167,7 +174,7 @@ async def test_get_version_integration_not_found(hass: HomeAssistant) -> None:
 
 
 @pytest.mark.asyncio
-async def test_async_remove_config_entry_device(hass: HomeAssistant) -> None:
+async def test_remove_config_entry_device(hass: HomeAssistant) -> None:
     """async_remove_config_entry_device removes the device and returns True."""
     entry = create_mock_config_entry()
     entry.add_to_hass(hass)
@@ -183,3 +190,57 @@ async def test_async_remove_config_entry_device(hass: HomeAssistant) -> None:
 
     assert result is True
     mock_registry.async_remove_device.assert_called_once_with("test-device-id")
+
+
+@pytest.mark.asyncio
+async def test_update_options_ignore_reload(hass: HomeAssistant) -> None:
+    """Should skip reload when only metadata changes."""
+    entry = MagicMock()
+    entry.entry_id = "test_entry"
+    entry.options = {
+        CONF_API_KEY: TEST_API_KEY_1,
+        CONF_SITE_ID: TEST_SITE_ID_1,
+        CONF_AQI_SOURCE: DEFAULT_AQI_SOURCE,
+    }
+
+    collector = MagicMock()
+    collector.api_key = TEST_API_KEY_1
+    collector.site_id = TEST_SITE_ID_1
+    collector.aqi_source = DEFAULT_AQI_SOURCE
+    collector.latitude = 0
+    collector.longitude = 0
+
+    entry.runtime_data = MagicMock()
+    entry.runtime_data.coordinator.collector = collector
+
+    with patch.object(hass.config_entries, "async_reload", AsyncMock()) as mock_reload:
+        await async_update_options(hass, entry)
+
+    mock_reload.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_update_options_reload(hass: HomeAssistant) -> None:
+    """Should reload when significant options change."""
+    entry = MagicMock()
+    entry.entry_id = "test_entry"
+    entry.options = {
+        CONF_API_KEY: TEST_API_KEY_2,
+        CONF_SITE_ID: TEST_SITE_ID_1,
+        CONF_AQI_SOURCE: DEFAULT_AQI_SOURCE,
+    }
+
+    collector = MagicMock()
+    collector.api_key = TEST_API_KEY_1
+    collector.site_id = TEST_SITE_ID_1
+    collector.aqi_source = DEFAULT_AQI_SOURCE
+    collector.latitude = 0
+    collector.longitude = 0
+
+    entry.runtime_data = MagicMock()
+    entry.runtime_data.coordinator.collector = collector
+
+    with patch.object(hass.config_entries, "async_reload", AsyncMock()) as mock_reload:
+        await async_update_options(hass, entry)
+
+    mock_reload.assert_awaited_once_with("test_entry")

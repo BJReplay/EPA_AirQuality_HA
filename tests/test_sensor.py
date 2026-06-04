@@ -14,6 +14,8 @@ from homeassistant.components.epa_victoria_air_quality.const import (
     TYPE_AQI_PM25,
     TYPE_AQI_PM25_24H,
     TYPE_NO2,
+    TYPE_O3,
+    TYPE_O3_24H,
     TYPE_PM10,
 )
 from homeassistant.components.epa_victoria_air_quality.coordinator import (
@@ -54,6 +56,7 @@ def _make_mock_collector(sensor_data: object = 8.5) -> MagicMock:
         }
 
     mock.get_sensor_attributes.side_effect = _attributes_for_key
+    mock.get_available_sensor_keys.return_value = []
     mock.async_update = AsyncMock(return_value=None)
     return mock
 
@@ -159,6 +162,44 @@ def test_sensor_entity_defaults() -> None:
     assert SENSORS[TYPE_AQI_OVERALL].entity_registry_enabled_default is True
     assert SENSORS[TYPE_PM10].entity_registry_enabled_default is False
     assert SENSORS[TYPE_NO2].entity_registry_enabled_default is False
+
+
+@pytest.mark.asyncio
+async def test_sensor_enabled_default_when_exists_at_startup(hass: HomeAssistant) -> None:
+    """Secondary sensors default-enabled at startup when key is already available."""
+    mock_collector = _make_mock_collector(sensor_data=27.0)
+    mock_collector.get_available_sensor_keys.return_value = [TYPE_O3]
+
+    mock_coordinator = MagicMock(spec=EPADataUpdateCoordinator)
+    mock_coordinator.hass = hass
+    mock_coordinator.collector = mock_collector
+    mock_coordinator.get_version = "1.0"
+    mock_coordinator.async_add_listener = MagicMock(return_value=lambda: None)
+
+    entry = create_mock_config_entry()
+    entry.add_to_hass(hass)
+    sensor = EPAQualitySensor(mock_coordinator, SENSORS[TYPE_O3], entry)
+
+    assert sensor.entity_registry_enabled_default is True
+
+
+@pytest.mark.asyncio
+async def test_sensor_enabled_default_when_counterpart_exists_at_startup(hass: HomeAssistant) -> None:
+    """Daily counterpart is also enabled when hourly key is available at startup."""
+    mock_collector = _make_mock_collector(sensor_data=27.0)
+    mock_collector.get_available_sensor_keys.return_value = [TYPE_O3]
+
+    mock_coordinator = MagicMock(spec=EPADataUpdateCoordinator)
+    mock_coordinator.hass = hass
+    mock_coordinator.collector = mock_collector
+    mock_coordinator.get_version = "1.0"
+    mock_coordinator.async_add_listener = MagicMock(return_value=lambda: None)
+
+    entry = create_mock_config_entry()
+    entry.add_to_hass(hass)
+    sensor = EPAQualitySensor(mock_coordinator, SENSORS[TYPE_O3_24H], entry)
+
+    assert sensor.entity_registry_enabled_default is True
 
 
 @pytest.mark.asyncio
@@ -275,7 +316,7 @@ async def test_sensor_async_update(hass: HomeAssistant) -> None:
 
 
 @pytest.mark.asyncio
-async def test_async_added_to_hass_registers_listener(hass: HomeAssistant) -> None:
+async def test_added_to_hass_registers_listener(hass: HomeAssistant) -> None:
     """The async_added_to_hass method registers _handle_coordinator_update as a coordinator listener."""
     sensor, _ = _make_sensor(hass)
     await sensor.async_added_to_hass()

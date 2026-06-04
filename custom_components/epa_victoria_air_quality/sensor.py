@@ -389,6 +389,14 @@ class EPAQualitySensor(CoordinatorEntity[EPADataUpdateCoordinator], SensorEntity
         self._update_policy: SensorUpdatePolicy = get_sensor_update_policy()
         self._entry: EPAConfigEntry = entry
         self._attr_force_update = FORCE_UPDATE_SENSOR_HISTORY
+
+        available_keys = self._collector.get_available_sensor_keys()
+        if available_keys:
+            expanded_keys = EPADataUpdateCoordinator.expand_to_counterpart_keys(available_keys, set(SENSORS))
+            if sensor_name in expanded_keys:
+                # When startup data proves existence, register as enabled.
+                self._attr_entity_registry_enabled_default = True
+
         if entry.options.get(CONF_LEGACY_UNIQUE_IDS, False):
             # Preserve the upstream unique ID format for entries migrated from v1/v2
             # so existing entity registry entries are not orphaned.

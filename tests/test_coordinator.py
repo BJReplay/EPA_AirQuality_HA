@@ -176,7 +176,7 @@ async def test_auto_enable_without_known_sensor_keys(hass: HomeAssistant) -> Non
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("legacy_entity", [True, False])
-async def test_async_update_data_auto_enables_available_sensor(hass: HomeAssistant, legacy_entity: bool) -> None:
+async def test_update_data_auto_enables_available_sensor(hass: HomeAssistant, legacy_entity: bool) -> None:
     """Available sensors are auto-enabled if they were disabled by integration defaults."""
     coordinator = _make_coordinator(hass)
     assert coordinator.config_entry is not None
@@ -228,3 +228,34 @@ async def test_async_update_data_auto_enables_available_sensor(hass: HomeAssista
 
     assert enabled_entry.disabled_by is None
     assert user_disabled_entry.disabled_by is er.RegistryEntryDisabler.USER
+
+
+@pytest.mark.asyncio
+async def test_update_data_enables_new_metrics(hass: HomeAssistant) -> None:
+    """A previously unavailable metric is enabled on the update where EPA starts reporting it."""
+    coordinator = _make_coordinator(hass)
+    assert coordinator.config_entry is not None
+
+    coordinator.collector.get_available_sensor_keys = MagicMock(return_value=[])
+
+    registry = er.async_get(hass)
+    o3_unique_id = f"epavic_epa_api_{TEST_SITE_ID_1}_{SENSORS[TYPE_O3].name}"
+    o3_entry = registry.async_get_or_create(
+        "sensor",
+        DOMAIN,
+        o3_unique_id,
+        config_entry=coordinator.config_entry,
+        suggested_object_id="epa_vic_o3_late_metric",
+        disabled_by=er.RegistryEntryDisabler.INTEGRATION,
+    )
+
+    await coordinator._async_update_data()
+    before_entry = registry.async_get(o3_entry.entity_id)
+    assert before_entry is not None
+    assert before_entry.disabled_by is er.RegistryEntryDisabler.INTEGRATION
+
+    coordinator.collector.get_available_sensor_keys.return_value = [TYPE_O3]
+    await coordinator._async_update_data()
+    after_entry = registry.async_get(o3_entry.entity_id)
+    assert after_entry is not None
+    assert after_entry.disabled_by is None

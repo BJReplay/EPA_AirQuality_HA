@@ -170,22 +170,50 @@ async def test_location_flow_key_changed(hass: HomeAssistant) -> None:
 
 
 @pytest.mark.asyncio
-async def test_location_flow_exception(hass: HomeAssistant) -> None:
-    """Test location step with exception during update."""
+async def test_location_flow_creates_entry(hass: HomeAssistant) -> None:
+    """Test location step creates entry."""
     with patch("homeassistant.components.epa_victoria_air_quality.config_flow.Collector", autospec=True) as mock_collector_cls:
         mock_collector = mock_collector_cls.return_value
         mock_collector.async_setup = AsyncMock(return_value=None)
         mock_collector.valid_location_list.return_value = True
         mock_collector.get_location_list.return_value = [{"value": TEST_SITE_ID_1, "label": "Test Site"}]
         mock_collector.get_location.return_value = TEST_SITE_ID_1
-        mock_collector.async_update = AsyncMock(side_effect=Exception("fail"))
+        mock_collector.async_update = AsyncMock(return_value=None)
 
         # Start flow and advance to location step
         result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
         result = await hass.config_entries.flow.async_configure(result["flow_id"], user_input={CONF_API_KEY: TEST_API_KEY_1})
         assert result.get("step_id") == "location"
 
-        # Submit with valid API key and site, but update fails
+        # Submit with valid API key and site.
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], user_input={CONF_API_KEY: TEST_API_KEY_1, CONF_SITE_ID: TEST_SITE_ID_1}
+        )
+        assert result.get("type") == FlowResultType.CREATE_ENTRY
+
+
+@pytest.mark.asyncio
+async def test_location_flow_exception(hass: HomeAssistant) -> None:
+    """Test location step handles unexpected exceptions."""
+    with (
+        patch("homeassistant.components.epa_victoria_air_quality.config_flow.Collector", autospec=True) as mock_collector_cls,
+        patch(
+            "homeassistant.components.epa_victoria_air_quality.config_flow.EPAVicConfigFlow.async_set_unique_id",
+            new=AsyncMock(side_effect=Exception("fail")),
+        ),
+    ):
+        mock_collector = mock_collector_cls.return_value
+        mock_collector.async_setup = AsyncMock(return_value=None)
+        mock_collector.valid_location_list.return_value = True
+        mock_collector.get_location_list.return_value = [{"value": TEST_SITE_ID_1, "label": "Test Site"}]
+        mock_collector.get_location.return_value = TEST_SITE_ID_1
+
+        # Start flow and advance to location step
+        result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
+        result = await hass.config_entries.flow.async_configure(result["flow_id"], user_input={CONF_API_KEY: TEST_API_KEY_1})
+        assert result.get("step_id") == "location"
+
+        # Submit with valid API key and site, but force an internal exception.
         result = await hass.config_entries.flow.async_configure(
             result["flow_id"], user_input={CONF_API_KEY: TEST_API_KEY_1, CONF_SITE_ID: TEST_SITE_ID_1}
         )

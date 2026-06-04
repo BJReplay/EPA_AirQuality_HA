@@ -179,9 +179,6 @@ class EPAVicConfigFlow(ConfigFlow, domain=DOMAIN):
                 elif any(e.options.get(CONF_SITE_ID) == site_id for e in self.hass.config_entries.async_entries(DOMAIN)):
                     errors["base"] = "already_configured_location"
                 else:
-                    # Populate observations
-                    await self.collector.async_update()
-
                     await self.async_set_unique_id(site_id)
                     self._abort_if_unique_id_configured()
 

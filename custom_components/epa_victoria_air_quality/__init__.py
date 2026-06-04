@@ -120,9 +120,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: EPAConfigEntry) -> bool:
 
     _LOGGER.debug("Successful init")
 
-    opt = {**entry.options}
-    hass.config_entries.async_update_entry(entry, options=opt)
-
     try:
         _LOGGER.debug("Running initial EPA refresh for %s", entry.title)
         await collector.async_update(no_throttle=True)
@@ -201,6 +198,19 @@ def get_ua_version(version: str) -> str:
 
 async def async_update_options(hass: HomeAssistant, entry: ConfigEntry):
     """Handle config entry updates."""
+    runtime_data = getattr(entry, "runtime_data", None)
+    if runtime_data is not None:
+        collector = runtime_data.coordinator.collector
+        if (
+            str(entry.options.get(CONF_API_KEY, "")) == str(collector.api_key)
+            and str(entry.options.get(CONF_SITE_ID, "")) == str(collector.site_id)
+            and str(entry.options.get(CONF_AQI_SOURCE, DEFAULT_AQI_SOURCE)) == str(collector.aqi_source)
+            and float(entry.options.get(CONF_LATITUDE, 0)) == float(collector.latitude)
+            and float(entry.options.get(CONF_LONGITUDE, 0)) == float(collector.longitude)
+        ):
+            # Ignore metadata-only entry updates that do not change collector behavior.
+            return
+
     await hass.config_entries.async_reload(entry.entry_id)
 
 

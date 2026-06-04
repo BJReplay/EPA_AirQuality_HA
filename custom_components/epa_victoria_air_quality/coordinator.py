@@ -67,7 +67,7 @@ class EPADataUpdateCoordinator(DataUpdateCoordinator):
             self._auto_enable_available_sensors()
 
     @staticmethod
-    def _expand_to_counterpart_keys(available_keys: list[str], sensor_keys: set[str]) -> set[str]:
+    def expand_to_counterpart_keys(available_keys: list[str], sensor_keys: set[str]) -> set[str]:
         """Expand available keys to include corresponding hourly/daily pairs."""
         expanded_keys: set[str] = set()
 
@@ -116,7 +116,7 @@ class EPADataUpdateCoordinator(DataUpdateCoordinator):
 
         site_id = self.config_entry.options.get(CONF_SITE_ID, self.config_entry.entry_id)
         use_legacy_unique_ids = self.config_entry.options.get(CONF_LEGACY_UNIQUE_IDS, False)
-        expanded_keys = self._expand_to_counterpart_keys(available_keys, set(SENSORS))
+        expanded_keys = self.expand_to_counterpart_keys(available_keys, set(SENSORS))
         available_unique_ids = {
             (f"epavic_epa_api_{SENSORS[key].name}" if use_legacy_unique_ids else f"epavic_epa_api_{site_id}_{SENSORS[key].name}")
             for key in expanded_keys

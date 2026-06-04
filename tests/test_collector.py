@@ -266,6 +266,31 @@ def test_log_api_readings_summary_none(caplog: pytest.LogCaptureFixture) -> None
     assert "API readings summary: none" in caplog.text
 
 
+def test_log_api_readings_summary_debug_disabled(caplog: pytest.LogCaptureFixture) -> None:
+    """When DEBUG is disabled, summary logging exits immediately."""
+    c = Collector(api_key=TEST_API_KEY_1, latitude=TEST_LAT, longitude=TEST_LON)
+
+    with patch(
+        "homeassistant.components.epa_victoria_air_quality.collector._LOGGER.isEnabledFor",
+        return_value=False,
+    ):
+        c._log_api_readings_summary(
+            [
+                {
+                    "name": NAME_PM10,
+                    "timeSeriesReadings": [
+                        {
+                            "timeSeriesName": "1HR_AV",
+                            "readings": [{"averageValue": 1.0}],
+                        }
+                    ],
+                }
+            ]
+        )
+
+    assert "API readings summary" not in caplog.text
+
+
 def test_log_api_readings_summary_skips_bad(caplog: pytest.LogCaptureFixture) -> None:
     """Odd log payloads are skipped."""
     c = Collector(api_key=TEST_API_KEY_1, latitude=TEST_LAT, longitude=TEST_LON)
@@ -818,7 +843,7 @@ async def test_extract_observation_data_parameter_no_time_series() -> None:
 
 
 @pytest.mark.asyncio
-async def test_async_update_success() -> None:
+async def test_update_success() -> None:
     """Successful update populates aqi and observation_data."""
     params = SIM.get_site_parameters(TEST_SITE_ID_1)
     c = Collector(
@@ -833,7 +858,7 @@ async def test_async_update_success() -> None:
 
 
 @pytest.mark.asyncio
-async def test_async_update_location_data_none() -> None:
+async def test_update_location_data_none() -> None:
     """When location_data is None, get_location_data() is called before the parameters fetch."""
     location_payload = SIM.get_sites_by_location(TEST_LAT, TEST_LON)
     params_payload = SIM.get_site_parameters(TEST_SITE_ID_1)
@@ -853,7 +878,7 @@ async def test_async_update_location_data_none() -> None:
 
 
 @pytest.mark.asyncio
-async def test_async_update_connection_refused() -> None:
+async def test_update_connection_refused() -> None:
     """ConnectionRefusedError inside async_update is logged and swallowed."""
     c = Collector(
         api_key=TEST_API_KEY_1,
@@ -866,7 +891,7 @@ async def test_async_update_connection_refused() -> None:
 
 
 @pytest.mark.asyncio
-async def test_async_update_exception() -> None:
+async def test_update_exception() -> None:
     """Unexpected exception inside async_update is logged and swallowed."""
     c = Collector(
         api_key=TEST_API_KEY_1,
@@ -879,7 +904,7 @@ async def test_async_update_exception() -> None:
 
 
 @pytest.mark.asyncio
-async def test_async_setup_calls_get_locations_list() -> None:
+async def test_setup_calls_get_locations_list() -> None:
     """async_setup calls get_locations_list when the list is empty."""
     payload = SIM.get_sites_list()
     c = Collector(api_key=TEST_API_KEY_1, latitude=TEST_LAT, longitude=TEST_LON, session=MockClientSession([MockResponse(payload)]))  # pyright: ignore[reportArgumentType]
@@ -888,7 +913,7 @@ async def test_async_setup_calls_get_locations_list() -> None:
 
 
 @pytest.mark.asyncio
-async def test_async_setup_skips_when_already_populated() -> None:
+async def test_setup_skips_when_already_populated() -> None:
     """async_setup does not fetch again when locations_list is already populated."""
     session = MagicMock()
     c = Collector(api_key=TEST_API_KEY_1, latitude=TEST_LAT, longitude=TEST_LON, session=session)
@@ -898,7 +923,7 @@ async def test_async_setup_skips_when_already_populated() -> None:
 
 
 @pytest.mark.asyncio
-async def test_async_setup_connection_refused() -> None:
+async def test_setup_connection_refused() -> None:
     """ConnectionRefusedError inside async_setup is logged and swallowed."""
     c = Collector(
         api_key=TEST_API_KEY_1,
@@ -910,7 +935,7 @@ async def test_async_setup_connection_refused() -> None:
 
 
 @pytest.mark.asyncio
-async def test_async_setup_exception() -> None:
+async def test_setup_exception() -> None:
     """Unexpected exception inside async_setup is logged and swallowed."""
     c = Collector(api_key=TEST_API_KEY_1, latitude=TEST_LAT, longitude=TEST_LON, session=ErrorClientSession(RuntimeError("unexpected")))  # pyright: ignore[reportArgumentType]
     await c.async_setup()  # Must not raise
@@ -953,7 +978,7 @@ class GatewayErrorClientSession:
 
 
 @pytest.mark.asyncio
-async def test_async_update_5xx_logs_clean_warning_not_traceback(caplog: pytest.LogCaptureFixture) -> None:
+async def test_update_5xx_logs_clean_warning_not_traceback(caplog: pytest.LogCaptureFixture) -> None:
     """A 5xx response logs a friendly warning without a traceback."""
     c = Collector(
         api_key=TEST_API_KEY_1,
@@ -975,7 +1000,7 @@ async def test_async_update_5xx_logs_clean_warning_not_traceback(caplog: pytest.
 
 
 @pytest.mark.asyncio
-async def test_async_update_5xx_logs_once_then_suppresses(caplog: pytest.LogCaptureFixture) -> None:
+async def test_update_5xx_logs_once_then_suppresses(caplog: pytest.LogCaptureFixture) -> None:
     """Repeated 5xx responses only log the warning on the first failure."""
     c = Collector(
         api_key=TEST_API_KEY_1,
@@ -996,7 +1021,7 @@ async def test_async_update_5xx_logs_once_then_suppresses(caplog: pytest.LogCapt
 
 
 @pytest.mark.asyncio
-async def test_async_update_5xx_recovery_logs_info(caplog: pytest.LogCaptureFixture) -> None:
+async def test_update_5xx_recovery_logs_info(caplog: pytest.LogCaptureFixture) -> None:
     """After a 5xx warning, a subsequent successful response logs a recovery message."""
     params = SIM.get_site_parameters(TEST_SITE_ID_1)
 
@@ -1022,7 +1047,7 @@ async def test_async_update_5xx_recovery_logs_info(caplog: pytest.LogCaptureFixt
 
 
 @pytest.mark.asyncio
-async def test_async_update_client_response_error_logs_clean_warning(caplog: pytest.LogCaptureFixture) -> None:
+async def test_update_client_response_error_logs_clean_warning(caplog: pytest.LogCaptureFixture) -> None:
     """A ClientResponseError from the session is caught and logged without a traceback."""
 
     def _make_client_response_error(status: int) -> ClientResponseError:
