@@ -47,7 +47,7 @@ This integration supports multiple locations, so you can monitor more than one E
 
 There are (at time of writing) 19 "standard" locations providing accurate PM2.5 pollutant data, and in may cases even more data. There are also many more "sensor" locations, and these provide an indicative air particle content. These locations are differentiated by the label "(sensor/indicative)", and provide a generally lower quality guidance.
 
-The list of stations can be viewed in list form at the [EPA Air and Water Quality](https://www.epa.vic.gov.au/check-air-and-water-quality?tab=list) in list view.  The standard locations are listed at the top of the list, with the pollutants recorded by each station shown if you click on the Pollutants tab, and the sensor monitoring sites are listed at the bottom of the list.
+The list of stations can be viewed at the [EPA Air and Water Quality](https://www.epa.vic.gov.au/check-air-and-water-quality?tab=list) in list view.  The standard locations are listed at the top of the list, with the pollutants recorded by each station shown if you click on the Pollutants tab, and the sensor monitoring sites are listed at the bottom of the list.
 
 ## Entities Exposed By This Integration
 
