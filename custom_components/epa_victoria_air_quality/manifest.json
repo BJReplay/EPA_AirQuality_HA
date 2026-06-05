@@ -19,8 +19,8 @@
   "requirements": [
     "aiohttp>=3.8.5",
     "geopy>=2.4.1",
-    "python-aqi>=0.6.1"
+    "aqicalc>=0.0.8.1"
   ],
   "single_config_entry": false,
-  "version": "0.4.9"
+  "version": "0.5.0"
 }

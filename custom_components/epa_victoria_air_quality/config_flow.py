@@ -1,5 +1,7 @@
 """Config flow for EPA Air Quality integration."""
 
+from __future__ import annotations
+
 import logging
 from typing import Any
 
@@ -23,7 +25,16 @@ from homeassistant.helpers.selector import (
 )
 
 from .collector import Collector
-from .const import CONF_SITE_ID, CONF_SITE_NAME, DOMAIN, TITLE
+from .const import (
+    AQI_SOURCE_OVERALL,
+    AQI_SOURCE_PM25,
+    CONF_AQI_SOURCE,
+    CONF_SITE_ID,
+    CONF_SITE_NAME,
+    DEFAULT_AQI_SOURCE,
+    DOMAIN,
+    TITLE,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -37,7 +48,7 @@ class EPAVicConfigFlow(ConfigFlow, domain=DOMAIN):
         self.data = {}
         self.collector: Collector | None = None
 
-    VERSION = 3
+    VERSION = 4
 
     @staticmethod
     @callback
@@ -168,9 +179,6 @@ class EPAVicConfigFlow(ConfigFlow, domain=DOMAIN):
                 elif any(e.options.get(CONF_SITE_ID) == site_id for e in self.hass.config_entries.async_entries(DOMAIN)):
                     errors["base"] = "already_configured_location"
                 else:
-                    # Populate observations
-                    await self.collector.async_update()
-
                     await self.async_set_unique_id(site_id)
                     self._abort_if_unique_id_configured()
 
@@ -180,6 +188,7 @@ class EPAVicConfigFlow(ConfigFlow, domain=DOMAIN):
                         CONF_API_KEY: user_input[CONF_API_KEY],
                         CONF_SITE_ID: site_id,
                         CONF_SITE_NAME: location_label,
+                        CONF_AQI_SOURCE: user_input.get(CONF_AQI_SOURCE, DEFAULT_AQI_SOURCE),
                     }
 
                     return self.async_create_entry(
@@ -202,6 +211,18 @@ class EPAVicConfigFlow(ConfigFlow, domain=DOMAIN):
                             options=epa_locs,
                             mode=SelectSelectorMode.DROPDOWN,
                             translation_key="choose_site",
+                        )
+                    ),
+                    vol.Optional(
+                        CONF_AQI_SOURCE,
+                        default=self.data.get(CONF_AQI_SOURCE, DEFAULT_AQI_SOURCE),
+                    ): SelectSelector(
+                        SelectSelectorConfig(
+                            options=[
+                                SelectOptionDict(label="PM2.5", value=AQI_SOURCE_PM25),
+                                SelectOptionDict(label="Overall", value=AQI_SOURCE_OVERALL),
+                            ],
+                            mode=SelectSelectorMode.DROPDOWN,
                         )
                     ),
                 }
@@ -330,6 +351,10 @@ class EPAVicOptionFlowHandler(OptionsFlow):
                         all_config_data[CONF_API_KEY] = self._validated_api_key
                         all_config_data[CONF_SITE_ID] = site_id
                         all_config_data[CONF_SITE_NAME] = location_label
+                        all_config_data[CONF_AQI_SOURCE] = user_input.get(
+                            CONF_AQI_SOURCE,
+                            self._options.get(CONF_AQI_SOURCE, DEFAULT_AQI_SOURCE),
+                        )
 
                         # Update the config entry title to reflect the selected location.
                         self.hass.config_entries.async_update_entry(self._entry, title=entry_title)
@@ -350,6 +375,18 @@ class EPAVicOptionFlowHandler(OptionsFlow):
                             options=epa_locs,
                             mode=SelectSelectorMode.DROPDOWN,
                             translation_key="choose_site",
+                        )
+                    ),
+                    vol.Optional(
+                        CONF_AQI_SOURCE,
+                        default=self._options.get(CONF_AQI_SOURCE, DEFAULT_AQI_SOURCE),
+                    ): SelectSelector(
+                        SelectSelectorConfig(
+                            options=[
+                                SelectOptionDict(label="PM2.5", value=AQI_SOURCE_PM25),
+                                SelectOptionDict(label="Overall", value=AQI_SOURCE_OVERALL),
+                            ],
+                            mode=SelectSelectorMode.DROPDOWN,
                         )
                     ),
                 }

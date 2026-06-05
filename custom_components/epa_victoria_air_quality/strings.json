@@ -11,6 +11,7 @@
     "step": {
       "location": {
         "data": {
+          "aqi_source": "Primary AQI Source",
           "api_key": "API Key",
           "choose_site": "Choose EPA Site",
           "latitude": "Latitude",
@@ -22,6 +23,7 @@
       },
       "user": {
         "data": {
+          "aqi_source": "Primary AQI Source",
           "api_key": "API Key",
           "choose_site": "Choose EPA Site",
           "latitude": "Latitude",
@@ -45,6 +47,7 @@
     "step": {
       "init": {
         "data": {
+          "aqi_source": "Primary AQI Source",
           "api_key": "API Key",
           "choose_site": "Choose EPA Site",
           "latitude": "Latitude",
@@ -56,6 +59,7 @@
       },
       "location": {
         "data": {
+          "aqi_source": "Primary AQI Source",
           "api_key": "API Key",
           "choose_site": "Choose EPA Site",
           "latitude": "Latitude",

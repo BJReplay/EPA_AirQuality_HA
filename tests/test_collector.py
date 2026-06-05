@@ -1,13 +1,21 @@
 """Tests for the EPA Victoria Air Quality collector."""
 
 from typing import Any, Self
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from aiohttp import ClientResponseError, ContentTypeError, RequestInfo
 import pytest
 
 from homeassistant.components.epa_victoria_air_quality.collector import Collector
-from homeassistant.components.epa_victoria_air_quality.const import TYPE_AQI
+from homeassistant.components.epa_victoria_air_quality.const import (
+    AQI_SOURCE_OVERALL,
+    NAME_PM10,
+    SITE_TYPE_SENSOR_LABEL_SUFFIX,
+    TYPE_AQI,
+    TYPE_AQI_OVERALL,
+    TYPE_AQI_PM25,
+    TYPE_PM25,
+)
 
 from . import TEST_API_KEY_1, TEST_SITE_ID_1
 from .simulator.simulate import SimulatedEPA
@@ -156,6 +164,8 @@ async def test_get_locations_list_success() -> None:
     assert len(c.locations_list) > 0
     site_ids = [loc["value"] for loc in c.locations_list]
     assert "10004" not in site_ids
+    sensor_site_label = next(str(loc["label"]) for loc in c.locations_list if loc["value"] == "10002")
+    assert sensor_site_label.endswith(SITE_TYPE_SENSOR_LABEL_SUFFIX)
 
 
 @pytest.mark.asyncio
@@ -245,6 +255,118 @@ def test_getters_site_not_found() -> None:
     assert c.get_sensor("anything") is None
 
 
+def test_get_sensor_attributes_no_site() -> None:
+    """When the site is not found, sensor attributes are empty."""
+    c = Collector(api_key=TEST_API_KEY_1, latitude=TEST_LAT, longitude=TEST_LON)
+    assert c.get_sensor_attributes("anything") == {}
+
+
+def test_log_api_readings_summary_none(caplog: pytest.LogCaptureFixture) -> None:
+    """An empty summary logs the explicit none message."""
+    c = Collector(api_key=TEST_API_KEY_1, latitude=TEST_LAT, longitude=TEST_LON)
+
+    with caplog.at_level("DEBUG"):
+        c._log_api_readings_summary([])
+
+    assert "API readings summary: none" in caplog.text
+
+
+def test_log_api_readings_summary_debug_disabled(caplog: pytest.LogCaptureFixture) -> None:
+    """When DEBUG is disabled, summary logging exits immediately."""
+    c = Collector(api_key=TEST_API_KEY_1, latitude=TEST_LAT, longitude=TEST_LON)
+
+    with patch(
+        "homeassistant.components.epa_victoria_air_quality.collector._LOGGER.isEnabledFor",
+        return_value=False,
+    ):
+        c._log_api_readings_summary(
+            [
+                {
+                    "name": NAME_PM10,
+                    "timeSeriesReadings": [
+                        {
+                            "timeSeriesName": "1HR_AV",
+                            "readings": [{"averageValue": 1.0}],
+                        }
+                    ],
+                }
+            ]
+        )
+
+    assert "API readings summary" not in caplog.text
+
+
+def test_log_api_readings_summary_skips_bad(caplog: pytest.LogCaptureFixture) -> None:
+    """Odd log payloads are skipped."""
+    c = Collector(api_key=TEST_API_KEY_1, latitude=TEST_LAT, longitude=TEST_LON)
+
+    with caplog.at_level("DEBUG"):
+        c._log_api_readings_summary(
+            [
+                {"name": NAME_PM10, "timeSeriesReadings": "bad"},
+                {"name": NAME_PM10, "timeSeriesReadings": [None]},
+                {"name": NAME_PM10, "timeSeriesReadings": [{"timeSeriesName": "bad", "readings": [{"averageValue": 1.0}]}]},
+                {"name": NAME_PM10, "timeSeriesReadings": [{"timeSeriesName": "1HR_AV", "readings": []}]},
+                {"name": NAME_PM10, "timeSeriesReadings": [{"timeSeriesName": "1HR_AV", "readings": [None]}]},
+            ]
+        )
+
+    assert "API readings summary: none" in caplog.text
+
+
+def test_calculate_aqi_unsupported_series_none() -> None:
+    """Unsupported pollutant/time-series pairs skip AQI conversion."""
+    c = Collector(api_key=TEST_API_KEY_1, latitude=TEST_LAT, longitude=TEST_LON)
+    assert c._calculate_aqi("NO2", "24HR_AV", 1.0) is None
+
+
+def test_set_observation_rounds_measurement_values() -> None:
+    """Stored float sensor values are rounded to stable precision."""
+    c = Collector(api_key=TEST_API_KEY_1, latitude=TEST_LAT, longitude=TEST_LON)
+
+    c._set_observation("so2", 0.7411000000000001, {})
+
+    assert c.observation_data["so2"] == 0.7411
+
+
+def test_set_overall_aqi_rounds_value() -> None:
+    """Overall AQI values are rounded before being stored."""
+    c = Collector(api_key=TEST_API_KEY_1, latitude=TEST_LAT, longitude=TEST_LON)
+    c.sensor_attributes["pm10_aqi_value"] = {}
+
+    c._set_overall_aqi("1HR_AV", [("pm10_aqi_value", NAME_PM10, 42.1234)])
+
+    assert c.observation_data[TYPE_AQI_OVERALL] == 42.123
+
+
+def test_collect_pollutant_readings_skips_bad() -> None:
+    """Odd parameter payloads are ignored without raising."""
+    c = Collector(api_key=TEST_API_KEY_1, latitude=TEST_LAT, longitude=TEST_LON)
+
+    readings = c._collect_pollutant_readings(
+        [
+            {
+                "name": "Not supported",
+                "timeSeriesReadings": [{"timeSeriesName": "1HR_AV", "readings": [{"averageValue": 1.0}]}],
+            },
+            {
+                "name": "PM10",
+                "timeSeriesReadings": [None],
+            },
+            {
+                "name": "PM10",
+                "timeSeriesReadings": [{"timeSeriesName": "1HR_AV", "readings": []}],
+            },
+            {
+                "name": "PM10",
+                "timeSeriesReadings": [{"timeSeriesName": "1HR_AV", "readings": [None]}],
+            },
+        ]
+    )
+
+    assert readings == {}
+
+
 def test_getters_site_found() -> None:
     """Return populated values when site has been resolved."""
     c = Collector(
@@ -303,6 +425,22 @@ def test_get_sensor_key_error() -> None:
     assert result == "Sensor %s Not Found!"
 
 
+def test_calculate_aqi_handles_index_error() -> None:
+    """An IndexError from the AQI library is treated as missing AQI data."""
+    c = Collector(
+        api_key=TEST_API_KEY_1,
+        epa_site_id=TEST_SITE_ID_1,
+        latitude=TEST_LAT,
+        longitude=TEST_LON,
+    )
+
+    with patch(
+        "homeassistant.components.epa_victoria_air_quality.collector.aqi.to_aqi",
+        side_effect=IndexError("out of range"),
+    ):
+        assert c._calculate_aqi("O3", "1HR_AV", 14.0) is None
+
+
 @pytest.mark.asyncio
 async def test_extract_observation_data_normal() -> None:
     """Normal 1HR_AV+24HR_AV data with positive confidence is extracted correctly."""
@@ -318,7 +456,7 @@ async def test_extract_observation_data_normal() -> None:
     assert c.aqi > 0
     assert c.aqi_24h > 0
     assert c.pm25 > 0
-    assert c.pm25_24h > 0
+    assert c.pm25_24h > 0  # pyright: ignore[reportOptionalOperand]
     assert c.confidence == 0.95
     assert c.confidence_24h == 0.98
     assert c.data_source_1h == "1HR_AV"
@@ -425,6 +563,139 @@ async def test_extract_observation_data_24h_none_value() -> None:
 
 
 @pytest.mark.asyncio
+async def test_extract_observation_data_unknown_value_treated_as_missing() -> None:
+    """Literal 'Unknown' reading values are treated as missing data."""
+    c = Collector(
+        api_key=TEST_API_KEY_1,
+        epa_site_id=TEST_SITE_ID_1,
+        latitude=TEST_LAT,
+        longitude=TEST_LON,
+    )
+    c.observations_data = {
+        "parameters": [
+            {
+                "name": "PM10",
+                "timeSeriesReadings": [
+                    {
+                        "timeSeriesName": "1HR_AV",
+                        "readings": [
+                            {
+                                "averageValue": "Unknown",
+                                "healthAdvice": "Unknown",
+                                "until": "2024-01-01T12:00:00",
+                                "confidence": 0,
+                                "totalSample": 0,
+                            }
+                        ],
+                    }
+                ],
+            }
+        ]
+    }
+
+    await c.extract_observation_data()
+
+    assert c.get_sensor("pm10") is None
+    assert c.get_sensor("pm10_advice") is None
+    assert "pm10" not in c.get_available_sensor_keys()
+    assert "pm10_advice" not in c.get_available_sensor_keys()
+
+
+@pytest.mark.asyncio
+async def test_extract_observation_data_indicative_pm25() -> None:
+    """Sensor-site payload name 'Particles' is treated as PM2.5 readings."""
+    c = Collector(
+        api_key=TEST_API_KEY_1,
+        epa_site_id=TEST_SITE_ID_1,
+        latitude=TEST_LAT,
+        longitude=TEST_LON,
+    )
+    c.observations_data = {
+        "siteType": "Sensor",
+        "parameters": [
+            {
+                "name": "Particles",
+                "timeSeriesReadings": [
+                    {
+                        "timeSeriesName": "1HR_AV",
+                        "readings": [
+                            {
+                                "averageValue": 5.6,
+                                "healthAdvice": "Good",
+                                "until": "2026-06-04T09:00:00Z",
+                                "confidence": "100",
+                                "totalSample": "12",
+                            }
+                        ],
+                    },
+                    {
+                        "timeSeriesName": "24HR_AV",
+                        "readings": [
+                            {
+                                "averageValue": 5.71,
+                                "healthAdvice": "Good",
+                                "until": "2026-06-04T09:00:00Z",
+                                "confidence": "100",
+                                "totalSample": "288",
+                            }
+                        ],
+                    },
+                ],
+            }
+        ],
+    }
+
+    await c.extract_observation_data()
+
+    assert c.get_sensor(TYPE_PM25) == 5.6
+    assert c.get_sensor(TYPE_AQI_PM25) == "Good"
+    assert TYPE_PM25 in c.get_available_sensor_keys()
+    assert TYPE_AQI_PM25 in c.get_available_sensor_keys()
+    hourly_attrs = c.get_sensor_attributes(TYPE_PM25)
+    assert hourly_attrs.get("monitoring_site_type") == "sensor"
+    assert hourly_attrs.get("measurement_quality") == "indicative"
+
+
+@pytest.mark.asyncio
+async def test_extract_observation_data_logs_api_readings_summary(caplog: pytest.LogCaptureFixture) -> None:
+    """Raw API readings are logged as a single DEBUG summary line."""
+    c = Collector(
+        api_key=TEST_API_KEY_1,
+        epa_site_id=TEST_SITE_ID_1,
+        latitude=TEST_LAT,
+        longitude=TEST_LON,
+    )
+    c.site_name = "Test Site"
+    c.observations_data = {
+        "parameters": [
+            {
+                "name": "PM10",
+                "timeSeriesReadings": [
+                    {
+                        "timeSeriesName": "1HR_AV",
+                        "readings": [
+                            {
+                                "averageValue": "Unknown",
+                                "healthAdvice": "Unknown",
+                                "until": "2024-01-01T12:00:00",
+                                "confidence": 0,
+                                "totalSample": 0,
+                            }
+                        ],
+                    }
+                ],
+            }
+        ]
+    }
+
+    with caplog.at_level("DEBUG"):
+        await c.extract_observation_data()
+
+    assert "Test Site API readings summary:" in caplog.text
+    assert "PM10/1HR_AV:avg='Unknown'" in caplog.text
+
+
+@pytest.mark.asyncio
 async def test_extract_observation_data_no_valid_readings_logs_warning(caplog: pytest.LogCaptureFixture) -> None:
     """When PARAMETERS present but pm25_24h is None and confidence is zero, a warning is logged once."""
     null_readings = {
@@ -515,6 +786,106 @@ async def test_extract_observation_data_no_parameters() -> None:
 
 
 @pytest.mark.asyncio
+async def test_extract_observation_data_overall_primary() -> None:
+    """Overall AQI source sets the primary AQI directly from the overall candidate."""
+    c = Collector(
+        api_key=TEST_API_KEY_1,
+        epa_site_id=TEST_SITE_ID_1,
+        latitude=TEST_LAT,
+        longitude=TEST_LON,
+        aqi_source=AQI_SOURCE_OVERALL,
+    )
+    c.observations_data = {
+        "parameters": [
+            {
+                "name": NAME_PM10,
+                "timeSeriesReadings": [
+                    {
+                        "timeSeriesName": "1HR_AV",
+                        "readings": [
+                            {
+                                "averageValue": 9.0,
+                                "healthAdvice": "Good",
+                                "until": "2024-01-01T12:00:00",
+                                "confidence": 0.95,
+                                "totalSample": 12.0,
+                            }
+                        ],
+                    },
+                    {
+                        "timeSeriesName": "24HR_AV",
+                        "readings": [
+                            {
+                                "averageValue": 10.0,
+                                "healthAdvice": "Good",
+                                "until": "2024-01-01T12:00:00",
+                                "confidence": 0.98,
+                                "totalSample": 288.0,
+                            }
+                        ],
+                    },
+                ],
+            }
+        ]
+    }
+
+    await c.extract_observation_data()
+
+    assert c.observation_data[TYPE_AQI] == c.observation_data[TYPE_AQI_OVERALL]
+    assert c.observation_data[TYPE_AQI] > 0
+
+
+@pytest.mark.asyncio
+async def test_extract_observation_data_overall_fallback_primary() -> None:
+    """When the overall AQI exists but the primary AQI does not, the fallback path copies it over."""
+    c = Collector(
+        api_key=TEST_API_KEY_1,
+        epa_site_id=TEST_SITE_ID_1,
+        latitude=TEST_LAT,
+        longitude=TEST_LON,
+    )
+    c.observations_data = {
+        "parameters": [
+            {
+                "name": NAME_PM10,
+                "timeSeriesReadings": [
+                    {
+                        "timeSeriesName": "1HR_AV",
+                        "readings": [
+                            {
+                                "averageValue": 9.0,
+                                "healthAdvice": "Good",
+                                "until": "2024-01-01T12:00:00",
+                                "confidence": 0.95,
+                                "totalSample": 12.0,
+                            }
+                        ],
+                    },
+                    {
+                        "timeSeriesName": "24HR_AV",
+                        "readings": [
+                            {
+                                "averageValue": 10.0,
+                                "healthAdvice": "Good",
+                                "until": "2024-01-01T12:00:00",
+                                "confidence": 0.98,
+                                "totalSample": 288.0,
+                            }
+                        ],
+                    },
+                ],
+            }
+        ]
+    }
+
+    await c.extract_observation_data()
+
+    assert TYPE_AQI_OVERALL in c.observation_data
+    assert TYPE_AQI in c.observation_data
+    assert c.observation_data[TYPE_AQI] == c.observation_data[TYPE_AQI_OVERALL]
+
+
+@pytest.mark.asyncio
 async def test_extract_observation_data_parameter_no_time_series() -> None:
     """Parameter dict without timeSeriesReadings is skipped without error."""
     c = Collector(
@@ -532,7 +903,7 @@ async def test_extract_observation_data_parameter_no_time_series() -> None:
 
 
 @pytest.mark.asyncio
-async def test_async_update_success() -> None:
+async def test_update_success() -> None:
     """Successful update populates aqi and observation_data."""
     params = SIM.get_site_parameters(TEST_SITE_ID_1)
     c = Collector(
@@ -547,7 +918,7 @@ async def test_async_update_success() -> None:
 
 
 @pytest.mark.asyncio
-async def test_async_update_location_data_none() -> None:
+async def test_update_location_data_none() -> None:
     """When location_data is None, get_location_data() is called before the parameters fetch."""
     location_payload = SIM.get_sites_by_location(TEST_LAT, TEST_LON)
     params_payload = SIM.get_site_parameters(TEST_SITE_ID_1)
@@ -567,7 +938,7 @@ async def test_async_update_location_data_none() -> None:
 
 
 @pytest.mark.asyncio
-async def test_async_update_connection_refused() -> None:
+async def test_update_connection_refused() -> None:
     """ConnectionRefusedError inside async_update is logged and swallowed."""
     c = Collector(
         api_key=TEST_API_KEY_1,
@@ -580,7 +951,7 @@ async def test_async_update_connection_refused() -> None:
 
 
 @pytest.mark.asyncio
-async def test_async_update_exception() -> None:
+async def test_update_exception() -> None:
     """Unexpected exception inside async_update is logged and swallowed."""
     c = Collector(
         api_key=TEST_API_KEY_1,
@@ -593,7 +964,7 @@ async def test_async_update_exception() -> None:
 
 
 @pytest.mark.asyncio
-async def test_async_setup_calls_get_locations_list() -> None:
+async def test_setup_calls_get_locations_list() -> None:
     """async_setup calls get_locations_list when the list is empty."""
     payload = SIM.get_sites_list()
     c = Collector(api_key=TEST_API_KEY_1, latitude=TEST_LAT, longitude=TEST_LON, session=MockClientSession([MockResponse(payload)]))  # pyright: ignore[reportArgumentType]
@@ -602,7 +973,7 @@ async def test_async_setup_calls_get_locations_list() -> None:
 
 
 @pytest.mark.asyncio
-async def test_async_setup_skips_when_already_populated() -> None:
+async def test_setup_skips_when_already_populated() -> None:
     """async_setup does not fetch again when locations_list is already populated."""
     session = MagicMock()
     c = Collector(api_key=TEST_API_KEY_1, latitude=TEST_LAT, longitude=TEST_LON, session=session)
@@ -612,7 +983,7 @@ async def test_async_setup_skips_when_already_populated() -> None:
 
 
 @pytest.mark.asyncio
-async def test_async_setup_connection_refused() -> None:
+async def test_setup_connection_refused() -> None:
     """ConnectionRefusedError inside async_setup is logged and swallowed."""
     c = Collector(
         api_key=TEST_API_KEY_1,
@@ -624,7 +995,7 @@ async def test_async_setup_connection_refused() -> None:
 
 
 @pytest.mark.asyncio
-async def test_async_setup_exception() -> None:
+async def test_setup_exception() -> None:
     """Unexpected exception inside async_setup is logged and swallowed."""
     c = Collector(api_key=TEST_API_KEY_1, latitude=TEST_LAT, longitude=TEST_LON, session=ErrorClientSession(RuntimeError("unexpected")))  # pyright: ignore[reportArgumentType]
     await c.async_setup()  # Must not raise
@@ -667,7 +1038,7 @@ class GatewayErrorClientSession:
 
 
 @pytest.mark.asyncio
-async def test_async_update_5xx_logs_clean_warning_not_traceback(caplog: pytest.LogCaptureFixture) -> None:
+async def test_update_5xx_logs_clean_warning_not_traceback(caplog: pytest.LogCaptureFixture) -> None:
     """A 5xx response logs a friendly warning without a traceback."""
     c = Collector(
         api_key=TEST_API_KEY_1,
@@ -689,7 +1060,7 @@ async def test_async_update_5xx_logs_clean_warning_not_traceback(caplog: pytest.
 
 
 @pytest.mark.asyncio
-async def test_async_update_5xx_logs_once_then_suppresses(caplog: pytest.LogCaptureFixture) -> None:
+async def test_update_5xx_logs_once_then_suppresses(caplog: pytest.LogCaptureFixture) -> None:
     """Repeated 5xx responses only log the warning on the first failure."""
     c = Collector(
         api_key=TEST_API_KEY_1,
@@ -710,7 +1081,7 @@ async def test_async_update_5xx_logs_once_then_suppresses(caplog: pytest.LogCapt
 
 
 @pytest.mark.asyncio
-async def test_async_update_5xx_recovery_logs_info(caplog: pytest.LogCaptureFixture) -> None:
+async def test_update_5xx_recovery_logs_info(caplog: pytest.LogCaptureFixture) -> None:
     """After a 5xx warning, a subsequent successful response logs a recovery message."""
     params = SIM.get_site_parameters(TEST_SITE_ID_1)
 
@@ -736,7 +1107,7 @@ async def test_async_update_5xx_recovery_logs_info(caplog: pytest.LogCaptureFixt
 
 
 @pytest.mark.asyncio
-async def test_async_update_client_response_error_logs_clean_warning(caplog: pytest.LogCaptureFixture) -> None:
+async def test_update_client_response_error_logs_clean_warning(caplog: pytest.LogCaptureFixture) -> None:
     """A ClientResponseError from the session is caught and logged without a traceback."""
 
     def _make_client_response_error(status: int) -> ClientResponseError:

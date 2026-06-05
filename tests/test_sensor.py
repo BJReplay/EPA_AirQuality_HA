@@ -8,9 +8,15 @@ import pytest
 from homeassistant.components.epa_victoria_air_quality.const import (
     ATTR_CONFIDENCE,
     ATTR_DATA_SOURCE,
+    ATTR_TOTAL_SAMPLE,
     CONF_LEGACY_UNIQUE_IDS,
+    TYPE_AQI_OVERALL,
     TYPE_AQI_PM25,
     TYPE_AQI_PM25_24H,
+    TYPE_NO2,
+    TYPE_O3,
+    TYPE_O3_24H,
+    TYPE_PM10,
 )
 from homeassistant.components.epa_victoria_air_quality.coordinator import (
     EPADataUpdateCoordinator,
@@ -34,6 +40,23 @@ def _make_mock_collector(sensor_data: object = 8.5) -> MagicMock:
     mock.get_total_sample_24h.return_value = 288.0
     mock.get_data_source.return_value = "1HR_AV"
     mock.until = "2024-01-01T12:00:00"
+
+    def _attributes_for_key(sensor_key: str) -> dict[str, object]:
+        if sensor_key == TYPE_AQI_PM25_24H:
+            return {
+                ATTR_CONFIDENCE: 0.98,
+                ATTR_TOTAL_SAMPLE: 288.0,
+                "until": "2024-01-01T12:00:00",
+            }
+        return {
+            ATTR_CONFIDENCE: 0.95,
+            ATTR_TOTAL_SAMPLE: 12.0,
+            ATTR_DATA_SOURCE: "1HR_AV",
+            "until": "2024-01-01T12:00:00",
+        }
+
+    mock.get_sensor_attributes.side_effect = _attributes_for_key
+    mock.get_available_sensor_keys.return_value = []
     mock.async_update = AsyncMock(return_value=None)
     return mock
 
@@ -114,9 +137,29 @@ async def test_sensor_init_key_error(hass: HomeAssistant) -> None:
 
 @pytest.mark.asyncio
 async def test_sensor_name(hass: HomeAssistant) -> None:
-    """The name property combines the entry title with the measurement description."""
+    """The name property returns only the measurement description."""
     sensor, _ = _make_sensor(hass)
-    assert sensor.name == f"{sensor._entry.title} {SENSORS[TYPE_AQI_PM25].name}"
+    assert sensor.name == str(SENSORS[TYPE_AQI_PM25].name)
+
+
+@pytest.mark.asyncio
+async def test_sensor_name_strips_sensor_suffix(hass: HomeAssistant) -> None:
+    """Sensor name does not include entry-title metadata such as suffixes."""
+    mock_collector = _make_mock_collector()
+    mock_coordinator = MagicMock(spec=EPADataUpdateCoordinator)
+    mock_coordinator.hass = hass
+    mock_coordinator.collector = mock_collector
+    mock_coordinator.get_version = "1.0"
+    mock_coordinator.async_add_listener = MagicMock(return_value=lambda: None)
+
+    entry = create_mock_config_entry()
+    entry.add_to_hass(hass)
+    hass.config_entries.async_update_entry(entry, title="EPA Air Quality - Sale (sensor/indicative)")
+
+    sensor = EPAQualitySensor(mock_coordinator, SENSORS[TYPE_AQI_PM25], entry)
+
+    assert sensor.name == str(SENSORS[TYPE_AQI_PM25].name)
+    assert sensor.unique_id == f"epavic_epa_api_{TEST_SITE_ID_1}_{SENSORS[TYPE_AQI_PM25].name}"
 
 
 @pytest.mark.asyncio
@@ -128,13 +171,55 @@ async def test_sensor_friendly_name(hass: HomeAssistant) -> None:
 
 @pytest.mark.asyncio
 async def test_sensor_suggested_object_id(hass: HomeAssistant) -> None:
-    """The suggested_object_id matches the original v1 format (no site_id).
-
-    This preserves existing entity IDs like sensor.epa_air_quality_hourly_health_advice
-    and gives _2, _3 suffixes to additional instances.
-    """
+    """The suggested_object_id does not include the site name or anything else."""
     sensor, _ = _make_sensor(hass)
-    assert sensor.suggested_object_id == f"epa_air_quality {SENSORS[TYPE_AQI_PM25].name}"
+    assert sensor.suggested_object_id == f"{SENSORS[TYPE_AQI_PM25].name}"
+
+
+def test_sensor_entity_defaults() -> None:
+    """PM2.5/overall are enabled by default while secondary pollutants are enabled as available."""
+    assert SENSORS[TYPE_AQI_PM25].entity_registry_enabled_default is True
+    assert SENSORS[TYPE_AQI_OVERALL].entity_registry_enabled_default is True
+    assert SENSORS[TYPE_PM10].entity_registry_enabled_default is False
+    assert SENSORS[TYPE_NO2].entity_registry_enabled_default is False
+
+
+@pytest.mark.asyncio
+async def test_sensor_enabled_default_when_exists_at_startup(hass: HomeAssistant) -> None:
+    """Secondary sensors default-enabled at startup when key is already available."""
+    mock_collector = _make_mock_collector(sensor_data=27.0)
+    mock_collector.get_available_sensor_keys.return_value = [TYPE_O3]
+
+    mock_coordinator = MagicMock(spec=EPADataUpdateCoordinator)
+    mock_coordinator.hass = hass
+    mock_coordinator.collector = mock_collector
+    mock_coordinator.get_version = "1.0"
+    mock_coordinator.async_add_listener = MagicMock(return_value=lambda: None)
+
+    entry = create_mock_config_entry()
+    entry.add_to_hass(hass)
+    sensor = EPAQualitySensor(mock_coordinator, SENSORS[TYPE_O3], entry)
+
+    assert sensor.entity_registry_enabled_default is True
+
+
+@pytest.mark.asyncio
+async def test_sensor_enabled_default_when_counterpart_exists_at_startup(hass: HomeAssistant) -> None:
+    """Daily counterpart is also enabled when hourly key is available at startup."""
+    mock_collector = _make_mock_collector(sensor_data=27.0)
+    mock_collector.get_available_sensor_keys.return_value = [TYPE_O3]
+
+    mock_coordinator = MagicMock(spec=EPADataUpdateCoordinator)
+    mock_coordinator.hass = hass
+    mock_coordinator.collector = mock_collector
+    mock_coordinator.get_version = "1.0"
+    mock_coordinator.async_add_listener = MagicMock(return_value=lambda: None)
+
+    entry = create_mock_config_entry()
+    entry.add_to_hass(hass)
+    sensor = EPAQualitySensor(mock_coordinator, SENSORS[TYPE_O3_24H], entry)
+
+    assert sensor.entity_registry_enabled_default is True
 
 
 @pytest.mark.asyncio
@@ -214,7 +299,7 @@ async def test_handle_coordinator_update_with_data(hass: HomeAssistant) -> None:
     """_handle_coordinator_update sets available=True when data is present."""
     sensor, mock_collector = _make_sensor(hass, TYPE_AQI_PM25, sensor_data="Good")
     mock_collector.get_sensor.return_value = "Fair"
-    sensor.async_write_ha_state = MagicMock()  # entity not registered; skip state write
+    sensor.async_write_ha_state = MagicMock()  # pyright: ignore[reportAttributeAccessIssue] # entity not registered; skip state write
     sensor._handle_coordinator_update()
     assert sensor._sensor_data == "Fair"
     assert sensor._attr_available is True
@@ -225,7 +310,7 @@ async def test_handle_coordinator_update_no_data(hass: HomeAssistant) -> None:
     """_handle_coordinator_update sets available=False when data is None."""
     sensor, mock_collector = _make_sensor(hass, TYPE_AQI_PM25, sensor_data="Good")
     mock_collector.get_sensor.return_value = None
-    sensor.async_write_ha_state = MagicMock()  # entity not registered; skip state write
+    sensor.async_write_ha_state = MagicMock()  # pyright: ignore[reportAttributeAccessIssue] # entity not registered; skip state write
     sensor._handle_coordinator_update()
     assert sensor._sensor_data is None
     assert sensor._attr_available is False
@@ -236,7 +321,7 @@ async def test_handle_coordinator_update_key_error(hass: HomeAssistant) -> None:
     """The _handle_coordinator_update method handles KeyError from get_sensor gracefully."""
     sensor, mock_collector = _make_sensor(hass, TYPE_AQI_PM25, sensor_data="Good")
     mock_collector.get_sensor.side_effect = KeyError("gone")
-    sensor.async_write_ha_state = MagicMock()  # entity not registered; skip state write
+    sensor.async_write_ha_state = MagicMock()  # pyright: ignore[reportAttributeAccessIssue] # entity not registered; skip state write
     sensor._handle_coordinator_update()
     assert sensor._sensor_data is None
     assert sensor._attr_available is False
@@ -251,7 +336,7 @@ async def test_sensor_async_update(hass: HomeAssistant) -> None:
 
 
 @pytest.mark.asyncio
-async def test_async_added_to_hass_registers_listener(hass: HomeAssistant) -> None:
+async def test_added_to_hass_registers_listener(hass: HomeAssistant) -> None:
     """The async_added_to_hass method registers _handle_coordinator_update as a coordinator listener."""
     sensor, _ = _make_sensor(hass)
     await sensor.async_added_to_hass()

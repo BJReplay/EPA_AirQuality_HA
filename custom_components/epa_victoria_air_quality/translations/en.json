@@ -12,6 +12,7 @@
       "location": {
         "data": {
           "api_key": "API Key",
+          "aqi_source": "Primary AQI Source",
           "choose_site": "Choose EPA Site",
           "latitude": "Latitude",
           "longitude": "Longitude",
@@ -23,6 +24,7 @@
       "user": {
         "data": {
           "api_key": "API Key",
+          "aqi_source": "Primary AQI Source",
           "choose_site": "Choose EPA Site",
           "latitude": "Latitude",
           "longitude": "Longitude",
@@ -46,6 +48,7 @@
       "init": {
         "data": {
           "api_key": "API Key",
+          "aqi_source": "Primary AQI Source",
           "choose_site": "Choose EPA Site",
           "latitude": "Latitude",
           "longitude": "Longitude",
@@ -57,6 +60,7 @@
       "location": {
         "data": {
           "api_key": "API Key",
+          "aqi_source": "Primary AQI Source",
           "choose_site": "Choose EPA Site",
           "latitude": "Latitude",
           "longitude": "Longitude",
