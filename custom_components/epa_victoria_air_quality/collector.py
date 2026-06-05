@@ -599,7 +599,7 @@ class Collector:
             return None
         try:
             numeric_value = float(value)
-        except TypeError, ValueError:
+        except:  # noqa: E722
             return None
         pollutant_constant = POLLUTANT_AQI_CONSTANTS.get(pollutant_name, {}).get(time_series_name)
         if pollutant_constant is None:
