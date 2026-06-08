@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 from aiohttp import ClientResponseError, ContentTypeError, RequestInfo
 import pytest
 
-from homeassistant.components.epa_victoria_air_quality.collector import Collector
+from homeassistant.components.epa_victoria_air_quality.collector import Collector, EPAAuthError
 from homeassistant.components.epa_victoria_air_quality.const import (
     AQI_SOURCE_OVERALL,
     NAME_PM10,
@@ -1130,3 +1130,41 @@ async def test_update_client_response_error_logs_clean_warning(caplog: pytest.Lo
     assert c._unavailable_logged is True
     assert "HTTP error 502" in caplog.text
     assert "Traceback" not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_update_401() -> None:
+    """A 401 is treated as an authentication failure."""
+    c = Collector(
+        api_key=TEST_API_KEY_1,
+        epa_site_id=TEST_SITE_ID_1,
+        latitude=TEST_LAT,
+        longitude=TEST_LON,
+        session=MockClientSession([MockResponse({}, status=401)]),  # pyright: ignore[reportArgumentType]
+    )
+
+    with pytest.raises(EPAAuthError):
+        await c.async_update()
+
+
+@pytest.mark.asyncio
+async def test_update_403() -> None:
+    """A 403 is treated as an authentication failure."""
+
+    def _make_client_response_error(status: int) -> ClientResponseError:
+        return ClientResponseError(
+            RequestInfo(url="https://example.com", method="GET", headers={}, real_url="https://example.com"),  # type: ignore[arg-type]
+            history=(),
+            status=status,
+        )
+
+    c = Collector(
+        api_key=TEST_API_KEY_1,
+        epa_site_id=TEST_SITE_ID_1,
+        latitude=TEST_LAT,
+        longitude=TEST_LON,
+        session=ErrorClientSession(_make_client_response_error(403)),  # pyright: ignore[reportArgumentType]
+    )
+
+    with pytest.raises(EPAAuthError):
+        await c.async_update()

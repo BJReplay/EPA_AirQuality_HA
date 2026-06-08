@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from homeassistant.components.epa_victoria_air_quality.collector import EPAAuthError
 from homeassistant.components.epa_victoria_air_quality.const import (
     CONF_LEGACY_UNIQUE_IDS,
     DOMAIN,
@@ -15,7 +16,9 @@ from homeassistant.components.epa_victoria_air_quality.coordinator import (
 )
 from homeassistant.components.epa_victoria_air_quality.sensor import SENSORS
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.update_coordinator import UpdateFailed
 
 from . import TEST_SITE_ID_1, create_mock_config_entry
 
@@ -259,3 +262,30 @@ async def test_update_data_enables_new_metrics(hass: HomeAssistant) -> None:
     after_entry = registry.async_get(o3_entry.entity_id)
     assert after_entry is not None
     assert after_entry.disabled_by is None
+
+
+@pytest.mark.asyncio
+async def test_update_data_auth_failure_raises(hass: HomeAssistant) -> None:
+    """A collector auth error starts reauth through ConfigEntryAuthFailed."""
+    coordinator = _make_coordinator(hass)
+    coordinator.collector.async_update = AsyncMock(side_effect=EPAAuthError("bad key"))
+
+    with pytest.raises(ConfigEntryAuthFailed):
+        await coordinator._async_update_data()
+
+
+@pytest.mark.asyncio
+async def test_reauth_update_failed(hass: HomeAssistant) -> None:
+    """If a reauth flow is already active, auth failure becomes UpdateFailed."""
+    coordinator = _make_coordinator(hass)
+    coordinator.collector.async_update = AsyncMock(side_effect=EPAAuthError("bad key"))
+
+    with (
+        patch.object(
+            hass.config_entries.flow,
+            "async_progress_by_handler",
+            return_value=[{"flow_id": "flow-1", "context": {"source": "reauth"}}],
+        ),
+        pytest.raises(UpdateFailed),
+    ):
+        await coordinator._async_update_data()

@@ -12,6 +12,7 @@ from homeassistant.components.epa_victoria_air_quality import (
     async_update_options,
     get_version,
 )
+from homeassistant.components.epa_victoria_air_quality.collector import EPAAuthError
 from homeassistant.components.epa_victoria_air_quality.const import (
     CONF_AQI_SOURCE,
     CONF_LEGACY_UNIQUE_IDS,
@@ -132,6 +133,40 @@ async def test_setup_entry_sets_collector_site_name(hass: HomeAssistant) -> None
 
 
 @pytest.mark.asyncio
+async def test_setup_does_not_duplicate_listener(hass: HomeAssistant) -> None:
+    """Setup should not add duplicate async_update_options listeners."""
+    entry = create_mock_config_entry()
+    entry.add_to_hass(hass)
+    entry.update_listeners.append(async_update_options)
+
+    with patch("homeassistant.components.epa_victoria_air_quality.Collector") as mock_cls:
+        main_collector = mock_cls.return_value
+        main_collector.async_update = AsyncMock(return_value=None)
+        main_collector.async_setup = AsyncMock(return_value=None)
+
+        await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    assert entry.update_listeners.count(async_update_options) == 1
+
+
+@pytest.mark.asyncio
+async def test_setup_auth_failure(hass: HomeAssistant) -> None:
+    """Entry enters SETUP_ERROR when collector raises auth failure."""
+    entry = create_mock_config_entry()
+    entry.add_to_hass(hass)
+
+    with patch("homeassistant.components.epa_victoria_air_quality.Collector") as mock_cls:
+        main_collector = mock_cls.return_value
+        main_collector.async_update = AsyncMock(side_effect=EPAAuthError("bad key"))
+        main_collector.async_setup = AsyncMock(return_value=None)
+
+        await hass.config_entries.async_setup(entry.entry_id)
+
+    assert entry.state == ConfigEntryState.SETUP_ERROR
+
+
+@pytest.mark.asyncio
 async def test_setup_entry_resolves_site_name_for_migrated_entry(hass: HomeAssistant) -> None:
     """Setup resolves and stores a human-readable site name for entries that lack CONF_SITE_NAME."""
     # Simulate a migrated entry: options only have CONF_API_KEY and CONF_SITE_ID.
@@ -243,4 +278,85 @@ async def test_update_options_reload(hass: HomeAssistant) -> None:
     with patch.object(hass.config_entries, "async_reload", AsyncMock()) as mock_reload:
         await async_update_options(hass, entry)
 
+    mock_reload.assert_awaited_once_with("test_entry")
+
+
+@pytest.mark.asyncio
+async def test_update_options_skip_reload_during_reauth(hass: HomeAssistant) -> None:
+    """Should not reload from listener while a reauth flow is active."""
+    entry = MagicMock()
+    entry.entry_id = "test_entry"
+    entry.options = {
+        CONF_API_KEY: TEST_API_KEY_2,
+        CONF_SITE_ID: TEST_SITE_ID_1,
+        CONF_AQI_SOURCE: DEFAULT_AQI_SOURCE,
+    }
+
+    collector = MagicMock()
+    collector.api_key = TEST_API_KEY_1
+    collector.site_id = TEST_SITE_ID_1
+    collector.aqi_source = DEFAULT_AQI_SOURCE
+    collector.latitude = 0
+    collector.longitude = 0
+
+    entry.runtime_data = MagicMock()
+    entry.runtime_data.coordinator.collector = collector
+
+    with (
+        patch.object(hass.config_entries.flow, "async_progress_by_handler", return_value=[MagicMock()]) as mock_progress,
+        patch.object(hass.config_entries, "async_reload", AsyncMock()) as mock_reload,
+    ):
+        await async_update_options(hass, entry)
+
+    mock_progress.assert_called_once_with(
+        "epa_victoria_air_quality",
+        match_context={"source": "reauth", "entry_id": "test_entry"},
+    )
+    mock_reload.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_update_options_reload_reauth_for_other_instance(
+    hass: HomeAssistant,
+) -> None:
+    """Should still reload if reauth context does not match this entry."""
+    entry = MagicMock()
+    entry.entry_id = "test_entry"
+    entry.options = {
+        CONF_API_KEY: TEST_API_KEY_2,
+        CONF_SITE_ID: TEST_SITE_ID_1,
+        CONF_AQI_SOURCE: DEFAULT_AQI_SOURCE,
+    }
+
+    collector = MagicMock()
+    collector.api_key = TEST_API_KEY_1
+    collector.site_id = TEST_SITE_ID_1
+    collector.aqi_source = DEFAULT_AQI_SOURCE
+    collector.latitude = 0
+    collector.longitude = 0
+
+    entry.runtime_data = MagicMock()
+    entry.runtime_data.coordinator.collector = collector
+
+    active_flow_context = {"source": "reauth", "entry_id": "other_entry"}
+
+    def _progress_by_handler(_domain: str, *, match_context: dict[str, str]):
+        if match_context.items() <= active_flow_context.items():
+            return [MagicMock()]
+        return []
+
+    with (
+        patch.object(
+            hass.config_entries.flow,
+            "async_progress_by_handler",
+            side_effect=_progress_by_handler,
+        ) as mock_progress,
+        patch.object(hass.config_entries, "async_reload", AsyncMock()) as mock_reload,
+    ):
+        await async_update_options(hass, entry)
+
+    mock_progress.assert_called_once_with(
+        "epa_victoria_air_quality",
+        match_context={"source": "reauth", "entry_id": "test_entry"},
+    )
     mock_reload.assert_awaited_once_with("test_entry")

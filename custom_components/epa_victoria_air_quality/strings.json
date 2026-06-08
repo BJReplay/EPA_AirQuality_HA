@@ -1,5 +1,9 @@
 {
   "config": {
+    "abort": {
+      "reauth_already_in_progress": "Reauthentication is already in progress",
+      "reauth_successful": "Reauthentication was successful"
+    },
     "error": {
       "already_configured_location": "This location is already configured",
       "bad_api": "Unable to retrieve Location List from EPA - probably bad API Key",
@@ -11,8 +15,8 @@
     "step": {
       "location": {
         "data": {
-          "aqi_source": "Primary AQI Source",
           "api_key": "API Key",
+          "aqi_source": "Primary AQI Source",
           "choose_site": "Choose EPA Site",
           "latitude": "Latitude",
           "longitude": "Longitude",
@@ -21,10 +25,17 @@
         "description": "Latitude and longitude will be used to find the nearest EPA air quality monitoring station to obtain air quality data for your location.\n\nThe default values come from your homeassistant \"Home\" zone (See Settings/Areas & Zones/Zones).",
         "title": "Set up EPA (Victoria) Air Monitoring"
       },
+      "reauth_confirm": {
+        "data": {
+          "api_key": "API Key"
+        },
+        "description": "Update your EPA API key. This updates all EPA Victoria instances that currently use the same key.",
+        "title": "Reauthenticate EPA (Victoria) Air Monitoring"
+      },
       "user": {
         "data": {
-          "aqi_source": "Primary AQI Source",
           "api_key": "API Key",
+          "aqi_source": "Primary AQI Source",
           "choose_site": "Choose EPA Site",
           "latitude": "Latitude",
           "longitude": "Longitude",
@@ -47,8 +58,8 @@
     "step": {
       "init": {
         "data": {
-          "aqi_source": "Primary AQI Source",
           "api_key": "API Key",
+          "aqi_source": "Primary AQI Source",
           "choose_site": "Choose EPA Site",
           "latitude": "Latitude",
           "longitude": "Longitude",
@@ -59,8 +70,8 @@
       },
       "location": {
         "data": {
-          "aqi_source": "Primary AQI Source",
           "api_key": "API Key",
+          "aqi_source": "Primary AQI Source",
           "choose_site": "Choose EPA Site",
           "latitude": "Latitude",
           "longitude": "Longitude",

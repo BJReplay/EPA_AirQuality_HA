@@ -8,10 +8,11 @@ from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers import debounce, device_registry as dr, entity_registry as er
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .collector import Collector
+from .collector import Collector, EPAAuthError
 from .const import CONF_LEGACY_UNIQUE_IDS, CONF_SITE_ID, DOMAIN, SCAN_INTERVAL
 
 _LOGGER = logging.getLogger(__name__)
@@ -136,7 +137,17 @@ class EPADataUpdateCoordinator(DataUpdateCoordinator):
 
     async def _async_update_data(self) -> Any:
         """Update collector data and auto-enable newly available sensors."""
-        await self.collector.async_update()
+        try:
+            await self.collector.async_update()
+        except EPAAuthError as ex:
+            # Prevent a burst of simultaneous entry auth failures spawning multiple reauth flows.
+            reauth_in_progress = any(
+                progress_flow.get("context", {}).get("source") == "reauth"
+                for progress_flow in self.hass.config_entries.flow.async_progress_by_handler(DOMAIN)
+            )
+            if reauth_in_progress:
+                raise UpdateFailed("Authentication failed while reauth flow is already in progress") from None
+            raise ConfigEntryAuthFailed(str(ex)) from None
         self._auto_enable_available_sensors()
         return None
 

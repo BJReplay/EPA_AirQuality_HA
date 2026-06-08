@@ -5,14 +5,14 @@ import logging
 from aiohttp.client_exceptions import ClientConnectorError
 
 from homeassistant import loader
-from homeassistant.config_entries import ConfigEntry
+from homeassistant.config_entries import SOURCE_REAUTH, ConfigEntry
 from homeassistant.const import CONF_API_KEY, CONF_LATITUDE, CONF_LONGITUDE, Platform
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from .collector import Collector
+from .collector import Collector, EPAAuthError
 from .const import (
     CONF_AQI_SOURCE,
     CONF_LEGACY_UNIQUE_IDS,
@@ -124,12 +124,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: EPAConfigEntry) -> bool:
         _LOGGER.debug("Running initial EPA refresh for %s", entry.title)
         await collector.async_update(no_throttle=True)
         _LOGGER.debug("Initial EPA refresh complete for %s", entry.title)
+    except EPAAuthError as ex:
+        raise ConfigEntryAuthFailed from ex
     except ClientConnectorError as ex:
         raise ConfigEntryNotReady from ex
 
-    # One-time lookup for migrated entries that pre-date CONF_SITE_NAME storage.
-    # Fetches the locations list from the API to resolve the numeric site ID to a
-    # human-readable name, then persists it so this call is never repeated.
+    # Look for migrated entries. Persist.
     if not entry.options.get(CONF_SITE_NAME):
         site_id = entry.options.get(CONF_SITE_ID, "")
         if site_id:
@@ -155,6 +155,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: EPAConfigEntry) -> bool:
 
     hass.data.setdefault(DOMAIN, {})
 
+    # Safety-net, then register and prep for unload.
+    while async_update_options in entry.update_listeners:
+        entry.update_listeners.remove(async_update_options)
     entry.async_on_unload(entry.add_update_listener(async_update_options))
 
     return True
@@ -198,6 +201,13 @@ def get_ua_version(version: str) -> str:
 
 async def async_update_options(hass: HomeAssistant, entry: ConfigEntry):
     """Handle config entry updates."""
+    # Reauth flow handles explicit reloads for matched entries.
+    if hass.config_entries.flow.async_progress_by_handler(
+        DOMAIN,
+        match_context={"source": SOURCE_REAUTH, "entry_id": entry.entry_id},
+    ):
+        return
+
     runtime_data = getattr(entry, "runtime_data", None)
     if runtime_data is not None:
         collector = runtime_data.coordinator.collector

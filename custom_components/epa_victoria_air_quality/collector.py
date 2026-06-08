@@ -195,6 +195,10 @@ MEASUREMENT_QUALITY_INDICATIVE = "indicative"
 MEASUREMENT_QUALITY_STANDARD = "standard"
 
 
+class EPAAuthError(Exception):
+    """Raised when the EPA API key is invalid or unauthorised."""
+
+
 class Collector:
     """Collector for PyEPA."""
 
@@ -794,6 +798,10 @@ class Collector:
         self.total_sample_24h = float(daily_attrs.get(ATTR_TOTAL_SAMPLE, 0) or 0)
         self.until = str((hourly_attrs or daily_attrs).get(UNTIL, ""))
 
+    def _raise_auth_error(self, status: int) -> None:
+        """Raise an auth error for invalid EPA credentials."""
+        raise EPAAuthError(f"{self.site_name or self.site_id} API key unauthorised (HTTP {status})")
+
     async def extract_observation_data(self):
         """Extract Observation Data to individual fields."""
         parameters: list[dict[str, object]] = []
@@ -855,6 +863,8 @@ class Collector:
 
                 _LOGGER.debug("Updating %s observation data", self.site_name)
                 async with session.get(URL_BASE + self.get_location() + URL_PARAMETERS, headers=self.headers, ssl=False) as resp:
+                    if resp.status in (401, 403):
+                        self._raise_auth_error(resp.status)
                     if resp.status >= 500:
                         if not self._unavailable_logged:
                             _LOGGER.warning(
@@ -871,6 +881,8 @@ class Collector:
                 _LOGGER.warning("Connection refused for site %s: %s", self.site_name, e)
                 self._unavailable_logged = True
         except ClientResponseError as e:
+            if e.status in (401, 403):
+                self._raise_auth_error(e.status)
             if not self._unavailable_logged:
                 _LOGGER.warning(
                     "%s air quality readings could not be updated: HTTP error %d (will retry)",
@@ -878,6 +890,8 @@ class Collector:
                     e.status,
                 )
                 self._unavailable_logged = True
+        except EPAAuthError:
+            raise
         except Exception:  # noqa: BLE001
             if not self._unavailable_logged:
                 _LOGGER.warning(

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 import logging
 from typing import Any
 
@@ -47,6 +48,7 @@ class EPAVicConfigFlow(ConfigFlow, domain=DOMAIN):
         """Initialise the config flow."""
         self.data = {}
         self.collector: Collector | None = None
+        self._reauth_api_key: str = ""
 
     VERSION = 4
 
@@ -75,6 +77,31 @@ class EPAVicConfigFlow(ConfigFlow, domain=DOMAIN):
             if (api_key := str(entry.options.get(CONF_API_KEY, "")).strip())
         }
         return keys.pop() if len(keys) == 1 else ""
+
+    def _entries_with_api_key(self, api_key: str) -> list[ConfigEntry]:
+        """Return all EPA config entries using the given API key."""
+        normalised_key = api_key.strip()
+        if not normalised_key:
+            return []
+        return [
+            entry
+            for entry in self.hass.config_entries.async_entries(DOMAIN)
+            if str(entry.options.get(CONF_API_KEY, "")).strip() == normalised_key
+        ]
+
+    async def _async_validate_api_key(self, api_key: str) -> dict[str, str]:
+        """Validate an API key by loading the EPA location list."""
+        collector = Collector(
+            api_key=api_key,
+            latitude=self.hass.config.latitude,
+            longitude=self.hass.config.longitude,
+            session=async_get_clientsession(self.hass),
+        )
+        await collector.async_setup()
+        if collector.valid_location_list():
+            return {}
+        _LOGGER.debug("Unable to retrieve location list from EPA")
+        return {"base": "bad_api"}
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Handle a flow initiated by the user.
@@ -232,6 +259,55 @@ class EPAVicConfigFlow(ConfigFlow, domain=DOMAIN):
                 CONF_API_KEY: "Enter your API key provided by EPA Victoria.",
                 CONF_SITE_ID: "Enter your the EPA Victoria Site ID, or leave as is to determine from location.",
             },
+        )
+
+    async def async_step_reauth(self, entry_data: Mapping[str, Any]) -> ConfigFlowResult:
+        """Handle a flow initiated by reauthentication."""
+        # Keep one active reauth flow at a time.
+        if any(
+            progress_flow["flow_id"] != self.flow_id and progress_flow.get("context", {}).get("source") == "reauth"
+            for progress_flow in self.hass.config_entries.flow.async_progress_by_handler(DOMAIN)
+        ):
+            return self.async_abort(reason="reauth_already_in_progress")
+
+        self._reauth_api_key = str(entry_data.get(CONF_API_KEY, "")).strip()
+        if not self._reauth_api_key:
+            self._reauth_api_key = str(self._get_reauth_entry().options.get(CONF_API_KEY, "")).strip()
+        return await self.async_step_reauth_confirm()
+
+    async def async_step_reauth_confirm(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """Confirm and apply reauthentication."""
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            new_api_key = str(user_input[CONF_API_KEY]).strip()
+            errors = await self._async_validate_api_key(new_api_key)
+
+            if not errors:
+                matching_entries = self._entries_with_api_key(self._reauth_api_key)
+                if not matching_entries:
+                    matching_entries = [self._get_reauth_entry()]
+                for entry in matching_entries:
+                    self.hass.config_entries.async_update_entry(
+                        entry,
+                        options={**entry.options, CONF_API_KEY: new_api_key},
+                    )
+
+                for entry in matching_entries:
+                    # During reauth we perform one explicit reload per entry;
+                    # listener-driven reload is suppressed in async_update_options.
+                    await self.hass.config_entries.async_reload(entry.entry_id)
+
+                return self.async_abort(reason="reauth_successful")
+
+        return self.async_show_form(
+            step_id="reauth_confirm",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_API_KEY): str,
+                }
+            ),
+            errors=errors,
         )
 
 
