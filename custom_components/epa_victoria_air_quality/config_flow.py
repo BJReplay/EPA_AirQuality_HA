@@ -10,7 +10,9 @@ import voluptuous as vol
 
 from homeassistant import config_entries
 from homeassistant.config_entries import (
+    SOURCE_REAUTH,
     ConfigEntry,
+    ConfigEntryState,
     ConfigFlow,
     ConfigFlowResult,
     OptionsFlow,
@@ -322,6 +324,26 @@ class EPAVicOptionFlowHandler(OptionsFlow):
         self._validated_api_key: str = ""
         self.data = {}
 
+    def _entries_with_api_key(self, api_key: str) -> list[ConfigEntry]:
+        """Return all EPA config entries using the given API key."""
+        normalised_key = api_key.strip()
+        if not normalised_key:
+            return []
+        return [
+            entry
+            for entry in self.hass.config_entries.async_entries(DOMAIN)
+            if str(entry.options.get(CONF_API_KEY, "")).strip() == normalised_key
+        ]
+
+    @callback
+    def _abort_reauth_flows_for_entry(self, entry_id: str) -> None:
+        """Abort active reauth flows for a specific config entry."""
+        for progress_flow in self.hass.config_entries.flow.async_progress_by_handler(
+            DOMAIN,
+            match_context={"source": SOURCE_REAUTH, "entry_id": entry_id},
+        ):
+            self.hass.config_entries.flow.async_abort(progress_flow["flow_id"])
+
     async def _async_build_collector(self, api_key: str) -> tuple[Collector, dict[str, str]]:
         """Build collector and validate API key.
 
@@ -418,9 +440,6 @@ class EPAVicOptionFlowHandler(OptionsFlow):
                         self._collector.site_id = site_id
                         self._collector.site_name = location_label
 
-                        # Populate observations for the selected site.
-                        await self._collector.async_update()
-
                         entry_title = f"{TITLE} - {location_label}" if location_label else TITLE
 
                         all_config_data = {**self._options}
@@ -431,6 +450,32 @@ class EPAVicOptionFlowHandler(OptionsFlow):
                             CONF_AQI_SOURCE,
                             self._options.get(CONF_AQI_SOURCE, DEFAULT_AQI_SOURCE),
                         )
+
+                        old_api_key = str(self._options.get(CONF_API_KEY, "")).strip()
+                        if old_api_key and old_api_key != self._validated_api_key:
+                            for entry in self._entries_with_api_key(old_api_key):
+                                self._abort_reauth_flows_for_entry(entry.entry_id)
+                                if entry.entry_id == self._entry.entry_id:
+                                    continue
+                                self.hass.config_entries.async_update_entry(
+                                    entry,
+                                    options={
+                                        **entry.options,
+                                        CONF_API_KEY: self._validated_api_key,
+                                    },
+                                )
+                                # Entries in setup error will not have an update listener registered, so trigger a reload.
+                                if entry.state == ConfigEntryState.SETUP_ERROR:
+                                    _LOGGER.debug("Loading dead %s", entry.title)
+                                    await self.hass.config_entries.async_reload(entry.entry_id)
+
+                        if not self._entry.update_listeners:
+                            self.hass.config_entries.async_update_entry(
+                                self._entry,
+                                title=entry_title,
+                                options=all_config_data,
+                            )
+                            await self.hass.config_entries.async_reload(self._entry.entry_id)
 
                         # Update the config entry title to reflect the selected location.
                         self.hass.config_entries.async_update_entry(self._entry, title=entry_title)
