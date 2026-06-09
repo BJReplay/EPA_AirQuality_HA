@@ -46,6 +46,46 @@
       }
     }
   },
+  "entity": {
+    "sensor": {
+      "daily_aqi_pollutant": {
+        "name": "Daily {pollutant} AQI"
+      },
+      "daily_health_advice": {
+        "name": "Daily {pollutant} Health Advice"
+      },
+      "daily_measurement": {
+        "name": "Daily {pollutant}"
+      },
+      "daily_overall_aqi": {
+        "name": "Daily Overall AQI"
+      },
+      "daily_primary_aqi": {
+        "name": "Daily AQI"
+      },
+      "daily_primary_health_advice": {
+        "name": "Daily Health Advice"
+      },
+      "hourly_aqi_pollutant": {
+        "name": "Hourly {pollutant} AQI"
+      },
+      "hourly_health_advice": {
+        "name": "Hourly {pollutant} Health Advice"
+      },
+      "hourly_measurement": {
+        "name": "Hourly {pollutant}"
+      },
+      "hourly_overall_aqi": {
+        "name": "Hourly Overall AQI"
+      },
+      "hourly_primary_aqi": {
+        "name": "Hourly AQI"
+      },
+      "hourly_primary_health_advice": {
+        "name": "Hourly Health Advice"
+      }
+    }
+  },
   "options": {
     "error": {
       "already_configured_location": "This location is already configured",
