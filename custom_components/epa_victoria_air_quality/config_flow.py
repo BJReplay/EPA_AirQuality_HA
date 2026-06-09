@@ -41,6 +41,8 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
+CONF_APPLY_TO_ALL = "apply_to_all"
+
 
 @config_entries.HANDLERS.register(DOMAIN)
 class EPAVicConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -51,6 +53,7 @@ class EPAVicConfigFlow(ConfigFlow, domain=DOMAIN):
         self.data = {}
         self.collector: Collector | None = None
         self._reauth_api_key: str = ""
+        self._reconfigure_api_key: str = ""
 
     VERSION = 4
 
@@ -181,6 +184,9 @@ class EPAVicConfigFlow(ConfigFlow, domain=DOMAIN):
                 errors["base"] = "bad_api"
 
         epa_locs: list[SelectOptionDict] = self.collector.get_location_list()
+        default_site_id = str(self.collector.get_location()).strip()
+        if not default_site_id and epa_locs:
+            default_site_id = str(epa_locs[0]["value"])
         present_key = self.data.get(CONF_API_KEY)
 
         if user_input is not None:
@@ -235,7 +241,7 @@ class EPAVicConfigFlow(ConfigFlow, domain=DOMAIN):
             data_schema=vol.Schema(
                 {
                     vol.Required(CONF_API_KEY, default=self.data.get(CONF_API_KEY)): str,
-                    vol.Required(CONF_SITE_ID, default=self.collector.get_location()): SelectSelector(
+                    vol.Required(CONF_SITE_ID, default=default_site_id): SelectSelector(
                         SelectSelectorConfig(
                             options=epa_locs,
                             mode=SelectSelectorMode.DROPDOWN,
@@ -272,10 +278,19 @@ class EPAVicConfigFlow(ConfigFlow, domain=DOMAIN):
         ):
             return self.async_abort(reason="reauth_already_in_progress")
 
+        entry_data = entry_data or {}
         self._reauth_api_key = str(entry_data.get(CONF_API_KEY, "")).strip()
         if not self._reauth_api_key:
             self._reauth_api_key = str(self._get_reauth_entry().options.get(CONF_API_KEY, "")).strip()
         return await self.async_step_reauth_confirm()
+
+    async def async_step_reconfigure(self, entry_data: Mapping[str, Any] | None) -> ConfigFlowResult:
+        """Handle a flow initiated by reconfiguration."""
+        entry_data = entry_data or {}
+        self._reconfigure_api_key = str(entry_data.get(CONF_API_KEY, "")).strip()
+        if not self._reconfigure_api_key:
+            self._reconfigure_api_key = str(self._get_reconfigure_entry().options.get(CONF_API_KEY, "")).strip()
+        return await self.async_step_reconfigure_confirm()
 
     async def async_step_reauth_confirm(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Confirm and apply reauthentication."""
@@ -286,19 +301,13 @@ class EPAVicConfigFlow(ConfigFlow, domain=DOMAIN):
             errors = await self._async_validate_api_key(new_api_key)
 
             if not errors:
-                matching_entries = self._entries_with_api_key(self._reauth_api_key)
-                if not matching_entries:
-                    matching_entries = [self._get_reauth_entry()]
-                for entry in matching_entries:
-                    self.hass.config_entries.async_update_entry(
-                        entry,
-                        options={**entry.options, CONF_API_KEY: new_api_key},
-                    )
-
-                for entry in matching_entries:
-                    # During reauth we perform one explicit reload per entry;
-                    # listener-driven reload is suppressed in async_update_options.
-                    await self.hass.config_entries.async_reload(entry.entry_id)
+                await self._async_apply_shared_api_key_update(
+                    previous_api_key=self._reauth_api_key,
+                    new_api_key=new_api_key,
+                    fallback_entry=self._get_reauth_entry(),
+                    apply_to_all=True,
+                    abort_reauth_flows=False,
+                )
 
                 return self.async_abort(reason="reauth_successful")
 
@@ -311,6 +320,73 @@ class EPAVicConfigFlow(ConfigFlow, domain=DOMAIN):
             ),
             errors=errors,
         )
+
+    async def async_step_reconfigure_confirm(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """Confirm and apply reconfiguration."""
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            new_api_key = str(user_input[CONF_API_KEY]).strip()
+            apply_to_all = bool(user_input.get(CONF_APPLY_TO_ALL, True))
+            errors = await self._async_validate_api_key(new_api_key)
+
+            if not errors:
+                await self._async_apply_shared_api_key_update(
+                    previous_api_key=self._reconfigure_api_key,
+                    new_api_key=new_api_key,
+                    fallback_entry=self._get_reconfigure_entry(),
+                    apply_to_all=apply_to_all,
+                    abort_reauth_flows=True,
+                )
+
+                return self.async_abort(reason="reconfigured")
+
+        return self.async_show_form(
+            step_id="reconfigure_confirm",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_API_KEY, default=self._reconfigure_api_key): str,
+                    vol.Required(CONF_APPLY_TO_ALL, default=True): bool,
+                }
+            ),
+            errors=errors,
+        )
+
+    @callback
+    def _abort_reauth_flows_for_entry(self, entry_id: str) -> None:
+        """Abort active reauth flows for a specific config entry."""
+        for progress_flow in self.hass.config_entries.flow.async_progress_by_handler(
+            DOMAIN,
+            match_context={"source": SOURCE_REAUTH, "entry_id": entry_id},
+        ):
+            self.hass.config_entries.flow.async_abort(progress_flow["flow_id"])
+
+    async def _async_apply_shared_api_key_update(
+        self,
+        *,
+        previous_api_key: str,
+        new_api_key: str,
+        fallback_entry: ConfigEntry,
+        apply_to_all: bool,
+        abort_reauth_flows: bool,
+    ) -> None:
+        """Update all entries sharing previous_api_key and reload them."""
+        matching_entries = self._entries_with_api_key(previous_api_key) if apply_to_all else []
+        if not matching_entries:
+            matching_entries = [fallback_entry]
+
+        for entry in matching_entries:
+            if abort_reauth_flows:
+                self._abort_reauth_flows_for_entry(entry.entry_id)
+            self.hass.config_entries.async_update_entry(
+                entry,
+                options={**entry.options, CONF_API_KEY: new_api_key},
+            )
+
+        for entry in matching_entries:
+            # Perform one explicit reload per updated entry; listener-driven
+            # reload is suppressed in async_update_options for reauth context.
+            await self.hass.config_entries.async_reload(entry.entry_id)
 
 
 class EPAVicOptionFlowHandler(OptionsFlow):

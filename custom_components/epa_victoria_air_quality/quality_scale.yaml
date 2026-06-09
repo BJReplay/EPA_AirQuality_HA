@@ -79,10 +79,7 @@ rules:
   entity-translations: done
   exception-translations: done
   icon-translations: done
-  reconfiguration-flow:
-    status: todo
-    comment: |
-      A reconfiguration flow is not implemented becase it is identical to an options flow.
+  reconfiguration-flow: done
   repair-issues: done
   stale-devices:
     status: exempt
