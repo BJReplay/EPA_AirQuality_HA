@@ -9,13 +9,13 @@
 
 [![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=BJReplay&repository=EPA_AirQuality_HA&category=integration)
 
-A Home Assistant custom component for reading air quality data from the EPA Victoria (Australia) Environment Monitoring API
+A Home Assistant custom component for reading air quality data from the EPA Victoria (Australia) Environment Monitoring API.
 
 In order to use this integration, you will need to sign up to the [EPA Developer portal](https://portal.api.epa.vic.gov.au/).
 
 Once you have signed up and have a log in, go to the [Environment Monitoring](https://portal.api.epa.vic.gov.au/product#product=environment-monitoring) page, select a name (such as home-assistant) for your new subscription, and hit `subscribe`.
 
-This will create a new subscription, with a Primary and Secondary key.  You only need one key for the API, and you can return to your [profile page](https://portal.api.epa.vic.gov.au/profile) at any time to review the keys, so there is no need to record them in your password manager (provided, of course, that you have recorded your login to to the EPA Developer portal in your password manager).
+This will create a new subscription, with a Primary and Secondary key.  You can use either API key, and you can return to your [profile page](https://portal.api.epa.vic.gov.au/profile) at any time to review the keys, so there is no need to record them in your password manager (provided, of course, that you have recorded your login to to the EPA Developer portal in your password manager).
 
 Once you have subscribed, you can set up this integration.
 
@@ -49,15 +49,19 @@ Go to the integration at `Settings` | `Devices & services` and add another servi
 
 ## Location differences
 
-There are (at time of writing) 19 "standard" locations providing accurate PM2.5 pollutant data, and in many cases even more data. There are also a lot more "sensor" locations, and these provide an indicative air particle content. These locations are differentiated by the label "(sensor/indicative)", and provide a generally lower quality guidance.
+There are (at time of writing) 19 "standard" locations providing accurate PM2.5 pollutant data, and in many cases even more data. There are also a lot more "sensor" locations, and these provide an indicative air particle content. These locations are differentiated by the label `(sensor/indicative)`, and provide a generally lower quality guidance.
 
 The list of stations can be viewed at the [EPA Air and Water Quality](https://www.epa.vic.gov.au/check-air-and-water-quality?tab=list) site in list view.  The standard locations are listed at the top of the list, with the pollutants recorded by each station shown if you click on the Pollutants tab, and the sensor monitoring sites are listed at the bottom of the list.
 
 ## Changing API key
 
-If the API key is regenerated in the EPA developer portal and not updated in the integration, then a reconfiguration issue will be raised within fifteen minutes. This allows for entry of the new key.
+If the API key is regenerated in the EPA developer portal and not updated in the integration then a reconfiguration issue will be raised within fifteen minutes. This allows for entry of the new key.
 
 You are also able to update to the new key immediately by using the reconfigure function. In `Settings` | `Devices & services` | `Integrations` | `EPA Victoria Air Quality` select a service menu (three dots) and choose `Reconfigure`. If there are more than one service using the same API key then the key will be changed for all services using the old key. This can be optionally overridden if desired, setting a new key for a single service only.
+
+> [!NOTE]
+>
+> If you are using a different key for differing integration services then you are going to need to select the correct one! The currant API key in use is displayed when the reconfigure flow is opened, so noting the prior key and its replacement might be handy in this circumstance.
 
 ## Changing locations
 
@@ -133,7 +137,11 @@ Primary AQI sensors (`Hourly AQI`, `Daily AQI`) include:
 - `configured_source`: The strategy configured in options (`PM2.5` or `Overall`).
 - `aqi_source`: Which sub-index actually produced the current AQI value.
 
-This allows for templates such as the following simple example that uses the base (first sensor defined) and casts it to a float with a default value of the Brighton sensor - which, if it doesn't have a value, uses the Spotswood sensor.
+## Examples
+
+An example templates to produce a fall-back AQI reading based on location availability.
+
+This uses the preferred location, with a secondary value of the Brighton sensor, which, if it doesn't have a value, uses the Spotswood sensor. Values converted to float as is needed to get a numeric from a string representation.
 
 ``` yaml
   states('sensor.epa_air_quality_hourly_aqi')
