@@ -327,8 +327,11 @@ class EPAVicConfigFlow(ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             new_api_key = str(user_input[CONF_API_KEY]).strip()
             apply_to_all = bool(user_input.get(CONF_APPLY_TO_ALL, True))
-            errors = await self._async_validate_api_key(new_api_key)
 
+            if self._reconfigure_api_key == new_api_key:
+                return self.async_abort(reason="not_reconfigured")
+
+            errors = await self._async_validate_api_key(new_api_key)
             if not errors:
                 await self._async_apply_shared_api_key_update(
                     previous_api_key=self._reconfigure_api_key,
@@ -337,7 +340,6 @@ class EPAVicConfigFlow(ConfigFlow, domain=DOMAIN):
                     apply_to_all=apply_to_all,
                     abort_reauth_flows=True,
                 )
-
                 return self.async_abort(reason="reconfigured")
 
         return self.async_show_form(
@@ -383,8 +385,8 @@ class EPAVicConfigFlow(ConfigFlow, domain=DOMAIN):
             )
 
         for entry in matching_entries:
-            # Perform one explicit reload per updated entry; listener-driven
-            # reload is suppressed in async_update_options for reauth context.
+            # Perform one explicit reload per updated entry; listener-driven reload
+            # is suppressed in async_update_options for reauth and reconfigure contexts.
             await self.hass.config_entries.async_reload(entry.entry_id)
 
 

@@ -1,6 +1,7 @@
 {
   "config": {
     "abort": {
+      "not_reconfigured": "API key unchanged",
       "reauth_already_in_progress": "Reauthentication is already in progress",
       "reauth_successful": "Reauthentication was successful",
       "reconfigured": "Reconfiguration was successful"

@@ -5,7 +5,7 @@ import logging
 from aiohttp.client_exceptions import ClientConnectorError
 
 from homeassistant import loader
-from homeassistant.config_entries import SOURCE_REAUTH, ConfigEntry
+from homeassistant.config_entries import SOURCE_REAUTH, SOURCE_RECONFIGURE, ConfigEntry
 from homeassistant.const import CONF_API_KEY, CONF_LATITUDE, CONF_LONGITUDE, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
@@ -201,10 +201,13 @@ def get_ua_version(version: str) -> str:
 
 async def async_update_options(hass: HomeAssistant, entry: ConfigEntry):
     """Handle config entry updates."""
-    # Reauth flow handles explicit reloads for matched entries.
-    if hass.config_entries.flow.async_progress_by_handler(
-        DOMAIN,
-        match_context={"source": SOURCE_REAUTH, "entry_id": entry.entry_id},
+
+    # Reauth and reconfig flows handle explicit reloads for matched entries.
+    if any(
+        (
+            hass.config_entries.flow.async_progress_by_handler(DOMAIN, match_context={"source": SOURCE_REAUTH}),
+            hass.config_entries.flow.async_progress_by_handler(DOMAIN, match_context={"source": SOURCE_RECONFIGURE}),
+        ),
     ):
         return
 
