@@ -12,7 +12,6 @@ from homeassistant import config_entries
 from homeassistant.config_entries import (
     SOURCE_REAUTH,
     ConfigEntry,
-    ConfigEntryState,
     ConfigFlow,
     ConfigFlowResult,
     OptionsFlow,
@@ -396,81 +395,9 @@ class EPAVicOptionFlowHandler(OptionsFlow):
         """Initialise options flow."""
         self._entry: ConfigEntry = config_entry
         self._options = dict(config_entry.options)
-        self._collector: Collector | None = None
-        self._validated_api_key: str = ""
         self.data = {}
 
-    def _entries_with_api_key(self, api_key: str) -> list[ConfigEntry]:
-        """Return all EPA config entries using the given API key."""
-        normalised_key = api_key.strip()
-        if not normalised_key:
-            return []
-        return [
-            entry
-            for entry in self.hass.config_entries.async_entries(DOMAIN)
-            if str(entry.options.get(CONF_API_KEY, "")).strip() == normalised_key
-        ]
-
-    @callback
-    def _abort_reauth_flows_for_entry(self, entry_id: str) -> None:
-        """Abort active reauth flows for a specific config entry."""
-        for progress_flow in self.hass.config_entries.flow.async_progress_by_handler(
-            DOMAIN,
-            match_context={"source": SOURCE_REAUTH, "entry_id": entry_id},
-        ):
-            self.hass.config_entries.flow.async_abort(progress_flow["flow_id"])
-
-    async def _async_build_collector(self, api_key: str) -> tuple[Collector, dict[str, str]]:
-        """Build collector and validate API key.
-
-        Returns the collector and any errors encountered.
-        """
-        errors: dict[str, str] = {}
-        collector = Collector(
-            api_key=api_key,
-            latitude=self.hass.config.latitude,
-            longitude=self.hass.config.longitude,
-            session=async_get_clientsession(self.hass),
-        )
-        await collector.async_setup()
-        if not collector.valid_location_list():
-            _LOGGER.debug("Unable to retrieve location list from EPA")
-            errors["base"] = "bad_api"
-        return collector, errors
-
-    async def async_step_init(self, user_input: dict | None = None) -> ConfigFlowResult:
-        """Initialise options flow with API key entry.
-
-        Arguments:
-            user_input (dict, optional): The input provided by the user. Defaults to None.
-
-        Returns:
-            Any: Either an error, or the next step.
-
-        """
-        errors: dict[str, str] = {}
-        api_key = self._options.get(CONF_API_KEY, "")
-
-        if user_input is not None:
-            self.data = user_input
-            api_key = user_input[CONF_API_KEY].replace(" ", "")
-            self._collector, errors = await self._async_build_collector(api_key)
-
-            if not errors:
-                self._validated_api_key = api_key
-                return await self.async_step_location()
-
-        return self.async_show_form(
-            step_id="init",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(CONF_API_KEY, default=api_key): str,
-                }
-            ),
-            errors=errors,
-        )
-
-    async def async_step_location(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Handle a flow initiated by the user.
 
         Arguments:
@@ -482,98 +409,27 @@ class EPAVicOptionFlowHandler(OptionsFlow):
         """
         errors = {}
 
-        if self._collector is None:
-            _LOGGER.exception("Unexpected exception")
-            errors["base"] = "unknown"
-            return self.async_show_form(
-                step_id="location",
-                data_schema=None,
-                errors=errors,
-            )
-        site_id = self._options.get(CONF_SITE_ID, self._collector.get_location())
-        epa_locs: list[SelectOptionDict] = self._collector.get_location_list()
-        present_key = self.data.get(CONF_API_KEY)
-
         if user_input is not None:
             try:
                 # Save the user input into self.data so it's retained
                 self.data = user_input
-                if self.data.get(CONF_API_KEY) != present_key:
-                    errors["base"] = "key_changed"
-                else:
-                    site_id = user_input[CONF_SITE_ID]
-                    location_label = next(
-                        (str(loc.get("label", "")) for loc in epa_locs if loc.get("value") == site_id),
-                        "",
-                    )
 
-                    if any(
-                        e.entry_id != self._entry.entry_id and e.options.get(CONF_SITE_ID) == site_id
-                        for e in self.hass.config_entries.async_entries(DOMAIN)
-                    ):
-                        errors["base"] = "already_configured_location"
-                    else:
-                        self._collector.site_id = site_id
-                        self._collector.site_name = location_label
-
-                        entry_title = f"{TITLE} - {location_label}" if location_label else TITLE
-
-                        all_config_data = {**self._options}
-                        all_config_data[CONF_API_KEY] = self._validated_api_key
-                        all_config_data[CONF_SITE_ID] = site_id
-                        all_config_data[CONF_SITE_NAME] = location_label
-                        all_config_data[CONF_AQI_SOURCE] = user_input.get(
-                            CONF_AQI_SOURCE,
-                            self._options.get(CONF_AQI_SOURCE, DEFAULT_AQI_SOURCE),
-                        )
-
-                        old_api_key = str(self._options.get(CONF_API_KEY, "")).strip()
-                        if old_api_key and old_api_key != self._validated_api_key:
-                            for entry in self._entries_with_api_key(old_api_key):
-                                self._abort_reauth_flows_for_entry(entry.entry_id)
-                                if entry.entry_id == self._entry.entry_id:
-                                    continue
-                                self.hass.config_entries.async_update_entry(
-                                    entry,
-                                    options={
-                                        **entry.options,
-                                        CONF_API_KEY: self._validated_api_key,
-                                    },
-                                )
-                                # Entries in setup error will not have an update listener registered, so trigger a reload.
-                                if entry.state == ConfigEntryState.SETUP_ERROR:
-                                    _LOGGER.debug("Loading dead %s", entry.title)
-                                    await self.hass.config_entries.async_reload(entry.entry_id)
-
-                        if not self._entry.update_listeners:
-                            self.hass.config_entries.async_update_entry(
-                                self._entry,
-                                title=entry_title,
-                                options=all_config_data,
-                            )
-                            await self.hass.config_entries.async_reload(self._entry.entry_id)
-
-                        # Update the config entry title to reflect the selected location.
-                        self.hass.config_entries.async_update_entry(self._entry, title=entry_title)
-
-                        return self.async_create_entry(title=entry_title, data=all_config_data)
+                all_config_data = {**self._options}
+                all_config_data[CONF_AQI_SOURCE] = user_input.get(
+                    CONF_AQI_SOURCE,
+                    self._options.get(CONF_AQI_SOURCE, DEFAULT_AQI_SOURCE),
+                )
+                self.hass.config_entries.async_update_entry(self._entry)
+                return self.async_create_entry(data=all_config_data)
 
             except Exception:
                 _LOGGER.exception("Unexpected exception")
                 errors["base"] = "unknown"
 
         return self.async_show_form(
-            step_id="location",
+            step_id="init",
             data_schema=vol.Schema(
                 {
-                    vol.Required(CONF_API_KEY, default=self.data.get(CONF_API_KEY)): str,
-                    vol.Required(CONF_SITE_ID, default=site_id): SelectSelector(
-                        SelectSelectorConfig(
-                            options=epa_locs,
-                            mode=SelectSelectorMode.DROPDOWN,
-                            translation_key="choose_site",
-                        )
-                    ),
                     vol.Optional(
                         CONF_AQI_SOURCE,
                         default=self._options.get(CONF_AQI_SOURCE, DEFAULT_AQI_SOURCE),
@@ -589,8 +445,4 @@ class EPAVicOptionFlowHandler(OptionsFlow):
                 }
             ),
             errors=errors,
-            description_placeholders={
-                CONF_API_KEY: "Enter your API key provided by EPA Victoria.",
-                CONF_SITE_ID: "Enter your the EPA Victoria Site ID, or leave as is to determine from location.",
-            },
         )

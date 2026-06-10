@@ -7,16 +7,16 @@ import pytest
 
 from homeassistant.components.epa_victoria_air_quality.config_flow import (
     EPAVicConfigFlow,
-    EPAVicOptionFlowHandler,
 )
 from homeassistant.components.epa_victoria_air_quality.const import (
+    AQI_SOURCE_OVERALL,
+    AQI_SOURCE_PM25,
     CONF_AQI_SOURCE,
     CONF_SITE_ID,
     CONF_SITE_NAME,
     DEFAULT_AQI_SOURCE,
     DOMAIN,
 )
-from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
@@ -69,39 +69,55 @@ async def test_full_user_flow(hass: HomeAssistant) -> None:
 
 @pytest.mark.asyncio
 async def test_options_flow(hass: HomeAssistant) -> None:
-    """Test the options flow."""
-    with patch("homeassistant.components.epa_victoria_air_quality.config_flow.Collector", autospec=True) as mock_collector_cls:
-        mock_collector = mock_collector_cls.return_value
-        mock_collector.async_setup = AsyncMock(return_value=None)
-        mock_collector.valid_location_list.return_value = True
-        mock_collector.get_location_list.return_value = [{"value": TEST_SITE_ID_2, "label": "Test Site 2"}]
-        mock_collector.get_location.return_value = TEST_SITE_ID_2
-        mock_collector.async_update = AsyncMock(return_value=None)
+    """Options flow exposes limited options and persists them."""
+    entry = create_mock_config_entry()
+    entry.add_to_hass(hass)
 
-        mock_config_entry = create_mock_config_entry()
-        mock_config_entry.add_to_hass(hass)
-        await hass.config_entries.async_setup(mock_config_entry.entry_id)
-        await hass.async_block_till_done()
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    assert result.get("type") == FlowResultType.FORM
+    assert result.get("step_id") == "init"
+    assert result["data_schema"]({})[CONF_AQI_SOURCE] == DEFAULT_AQI_SOURCE  # pyright: ignore[reportIndexIssue, reportTypedDictNotRequiredAccess, reportOptionalCall, reportOptionalSubscript]
 
-        result = await hass.config_entries.options.async_init(mock_config_entry.entry_id)
-        assert result.get("type") == FlowResultType.FORM
-        assert result.get("step_id") == "init"
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        user_input={CONF_AQI_SOURCE: AQI_SOURCE_OVERALL},
+    )
+    assert result.get("type") == FlowResultType.CREATE_ENTRY
+    assert result.get("data", {}).get(CONF_AQI_SOURCE) == AQI_SOURCE_OVERALL
+    assert result.get("data", {}).get(CONF_API_KEY) == TEST_API_KEY_1
+    assert result.get("data", {}).get(CONF_SITE_ID) == TEST_SITE_ID_1
 
-        # Update API key
-        result = await hass.config_entries.options.async_configure(result["flow_id"], user_input={CONF_API_KEY: TEST_API_KEY_2})
-        assert result.get("type") == FlowResultType.FORM
-        assert result.get("step_id") == "location"
 
-        # Update site
+@pytest.mark.asyncio
+async def test_options_flow_default_uses_entry_value(hass: HomeAssistant) -> None:
+    """Options flow defaults to the current values."""
+    entry = create_mock_config_entry(options={**DEFAULT_OPTIONS, CONF_AQI_SOURCE: AQI_SOURCE_OVERALL})
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+
+    assert result.get("type") == FlowResultType.FORM
+    assert result.get("step_id") == "init"
+    assert result["data_schema"]({})[CONF_AQI_SOURCE] == AQI_SOURCE_OVERALL  # pyright: ignore[reportIndexIssue, reportTypedDictNotRequiredAccess, reportOptionalCall, reportOptionalSubscript]
+
+
+@pytest.mark.asyncio
+async def test_options_flow_exception_returns_unknown(hass: HomeAssistant) -> None:
+    """Options flow returns unknown error if updating the entry fails."""
+    entry = create_mock_config_entry()
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+
+    with patch.object(hass.config_entries, "async_update_entry", side_effect=Exception("fail")):
         result = await hass.config_entries.options.async_configure(
-            result["flow_id"], user_input={CONF_API_KEY: TEST_API_KEY_2, CONF_SITE_ID: TEST_SITE_ID_2}
+            result["flow_id"],
+            user_input={CONF_AQI_SOURCE: AQI_SOURCE_PM25},
         )
-        assert result.get("type") == FlowResultType.CREATE_ENTRY
-        assert result.get("title") == f"EPA Air Quality - {TEST_SITE_NAME_2}"
-        assert result.get("data", {}).get(CONF_API_KEY) == TEST_API_KEY_2
-        assert result.get("data", {}).get(CONF_SITE_ID) == TEST_SITE_ID_2
-        assert result.get("data", {}).get(CONF_SITE_NAME) == TEST_SITE_NAME_2
-        assert result.get("data", {}).get(CONF_AQI_SOURCE) == DEFAULT_AQI_SOURCE
+
+    assert result.get("type") == FlowResultType.FORM
+    assert result.get("step_id") == "init"
+    assert result.get("errors", {}).get("base") == "unknown"  # pyright: ignore[reportOptionalMemberAccess]
 
 
 @pytest.mark.asyncio
@@ -276,100 +292,6 @@ async def test_location_flow_valid_location_list_becomes_false(hass: HomeAssista
 
 
 @pytest.mark.asyncio
-async def test_options_flow_bad_api_key(hass: HomeAssistant) -> None:
-    """Test options flow init with a bad API key."""
-    with patch("homeassistant.components.epa_victoria_air_quality.config_flow.Collector", autospec=True) as mock_collector_cls:
-        mock_collector = mock_collector_cls.return_value
-        mock_collector.async_setup = AsyncMock(return_value=None)
-        mock_collector.valid_location_list.return_value = False
-
-        mock_config_entry = create_mock_config_entry()
-        mock_config_entry.add_to_hass(hass)
-
-        result = await hass.config_entries.options.async_init(mock_config_entry.entry_id)
-        assert result.get("type") == FlowResultType.FORM
-        assert result.get("step_id") == "init"
-
-        result = await hass.config_entries.options.async_configure(result["flow_id"], user_input={CONF_API_KEY: "bad-key"})
-        assert result.get("type") == FlowResultType.FORM
-        assert result.get("step_id") == "init"
-        assert result.get("errors", {}).get("base") == "bad_api"  # pyright: ignore[reportOptionalMemberAccess]
-
-
-@pytest.mark.asyncio
-async def test_options_flow_location_collector_none_direct(hass: HomeAssistant) -> None:
-    """Directly test options location step when _collector is None."""
-    mock_config_entry = create_mock_config_entry()
-    mock_config_entry.add_to_hass(hass)
-    handler = EPAVicOptionFlowHandler(mock_config_entry)
-    handler.hass = hass
-    # _collector is None by default
-    result = await handler.async_step_location(user_input=None)
-    assert result.get("type") == FlowResultType.FORM
-    assert result.get("step_id") == "location"
-    assert result.get("errors", {}).get("base") == "unknown"  # pyright: ignore[reportOptionalMemberAccess]
-
-
-@pytest.mark.asyncio
-async def test_options_flow_location_key_changed(hass: HomeAssistant) -> None:
-    """Test options flow location step with a changed API key."""
-    with patch("homeassistant.components.epa_victoria_air_quality.config_flow.Collector", autospec=True) as mock_collector_cls:
-        mock_collector = mock_collector_cls.return_value
-        mock_collector.async_setup = AsyncMock(return_value=None)
-        mock_collector.valid_location_list.return_value = True
-        mock_collector.get_location_list.return_value = [{"value": TEST_SITE_ID_1, "label": "Test Site"}]
-        mock_collector.get_location.return_value = TEST_SITE_ID_1
-        mock_collector.async_update = AsyncMock(return_value=None)
-
-        mock_config_entry = create_mock_config_entry()
-        mock_config_entry.add_to_hass(hass)
-
-        result = await hass.config_entries.options.async_init(mock_config_entry.entry_id)
-        result = await hass.config_entries.options.async_configure(result["flow_id"], user_input={CONF_API_KEY: TEST_API_KEY_1})
-        assert result.get("step_id") == "location"
-
-        # Submit with a different API key
-        result = await hass.config_entries.options.async_configure(
-            result["flow_id"], user_input={CONF_API_KEY: "DIFFERENT", CONF_SITE_ID: TEST_SITE_ID_1}
-        )
-        assert result.get("type") == FlowResultType.FORM
-        assert result.get("step_id") == "location"
-        assert result.get("errors", {}).get("base") == "key_changed"  # pyright: ignore[reportOptionalMemberAccess]
-
-
-@pytest.mark.asyncio
-async def test_options_flow_location_exception(hass: HomeAssistant) -> None:
-    """Test options flow location step with exception during entry update."""
-    with patch("homeassistant.components.epa_victoria_air_quality.config_flow.Collector", autospec=True) as mock_collector_cls:
-        mock_collector = mock_collector_cls.return_value
-        mock_collector.async_setup = AsyncMock(return_value=None)
-        mock_collector.valid_location_list.return_value = True
-        mock_collector.get_location_list.return_value = [{"value": TEST_SITE_ID_1, "label": "Test Site"}]
-        mock_collector.get_location.return_value = TEST_SITE_ID_1
-        mock_collector.async_update = AsyncMock(return_value=None)
-
-        mock_config_entry = create_mock_config_entry()
-        mock_config_entry.add_to_hass(hass)
-
-        result = await hass.config_entries.options.async_init(mock_config_entry.entry_id)
-        result = await hass.config_entries.options.async_configure(result["flow_id"], user_input={CONF_API_KEY: TEST_API_KEY_1})
-        assert result.get("step_id") == "location"
-
-        # Trigger an unexpected exception via async_update_entry
-        with patch.object(
-            hass.config_entries,
-            "async_update_entry",
-            side_effect=Exception("fail"),
-        ):
-            result = await hass.config_entries.options.async_configure(
-                result["flow_id"], user_input={CONF_API_KEY: TEST_API_KEY_1, CONF_SITE_ID: TEST_SITE_ID_1}
-            )
-        assert result.get("type") == FlowResultType.FORM
-        assert result.get("step_id") == "location"
-        assert result.get("errors", {}).get("base") == "unknown"  # pyright: ignore[reportOptionalMemberAccess]
-
-
-@pytest.mark.asyncio
 async def test_user_flow_duplicate_location_rejected(hass: HomeAssistant) -> None:
     """Config flow location step rejects a site already configured in another entry."""
     existing_entry = create_mock_config_entry()
@@ -396,71 +318,6 @@ async def test_user_flow_duplicate_location_rejected(hass: HomeAssistant) -> Non
         assert result.get("errors", {}).get("base") == "already_configured_location"  # pyright: ignore[reportOptionalMemberAccess]
         # Confirm no API call was made for the duplicate
         mock_collector.async_update.assert_not_called()
-
-
-@pytest.mark.asyncio
-async def test_options_flow_duplicate_location_rejected(hass: HomeAssistant) -> None:
-    """Options flow location step rejects a site already configured in a different entry."""
-    from . import DEFAULT_OPTIONS, TEST_SITE_ID_2, TEST_SITE_NAME_2  # noqa: PLC0415
-
-    # Entry 1: site 10001 (the one being reconfigured)
-    entry1 = create_mock_config_entry()
-    entry1.add_to_hass(hass)
-
-    # Entry 2: site 10002 (already exists)
-    entry2 = create_mock_config_entry(
-        options={**DEFAULT_OPTIONS, CONF_SITE_ID: TEST_SITE_ID_2, CONF_SITE_NAME: TEST_SITE_NAME_2},
-    )
-    entry2.add_to_hass(hass)
-
-    with patch("homeassistant.components.epa_victoria_air_quality.config_flow.Collector", autospec=True) as mock_collector_cls:
-        mock_collector = mock_collector_cls.return_value
-        mock_collector.async_setup = AsyncMock(return_value=None)
-        mock_collector.valid_location_list.return_value = True
-        mock_collector.get_location_list.return_value = [
-            {"value": TEST_SITE_ID_1, "label": "Test Site 1"},
-            {"value": TEST_SITE_ID_2, "label": TEST_SITE_NAME_2},
-        ]
-        mock_collector.get_location.return_value = TEST_SITE_ID_1
-        mock_collector.async_update = AsyncMock(return_value=None)
-
-        result = await hass.config_entries.options.async_init(entry1.entry_id)
-        result = await hass.config_entries.options.async_configure(result["flow_id"], user_input={CONF_API_KEY: TEST_API_KEY_1})
-        assert result.get("step_id") == "location"
-
-        # Try to switch entry1 to site 10002, which is already used by entry2
-        result = await hass.config_entries.options.async_configure(
-            result["flow_id"], user_input={CONF_API_KEY: TEST_API_KEY_1, CONF_SITE_ID: TEST_SITE_ID_2}
-        )
-        assert result.get("type") == FlowResultType.FORM
-        assert result.get("step_id") == "location"
-        assert result.get("errors", {}).get("base") == "already_configured_location"  # pyright: ignore[reportOptionalMemberAccess]
-        mock_collector.async_update.assert_not_called()
-
-
-@pytest.mark.asyncio
-async def test_options_flow_same_location_allowed(hass: HomeAssistant) -> None:
-    """Options flow allows keeping the same location when reconfiguring."""
-    with patch("homeassistant.components.epa_victoria_air_quality.config_flow.Collector", autospec=True) as mock_collector_cls:
-        mock_collector = mock_collector_cls.return_value
-        mock_collector.async_setup = AsyncMock(return_value=None)
-        mock_collector.valid_location_list.return_value = True
-        mock_collector.get_location_list.return_value = [{"value": TEST_SITE_ID_1, "label": "Test Site 1"}]
-        mock_collector.get_location.return_value = TEST_SITE_ID_1
-        mock_collector.async_update = AsyncMock(return_value=None)
-
-        entry = create_mock_config_entry()
-        entry.add_to_hass(hass)
-
-        result = await hass.config_entries.options.async_init(entry.entry_id)
-        result = await hass.config_entries.options.async_configure(result["flow_id"], user_input={CONF_API_KEY: TEST_API_KEY_1})
-        assert result.get("step_id") == "location"
-
-        # Re-select the same site - must succeed
-        result = await hass.config_entries.options.async_configure(
-            result["flow_id"], user_input={CONF_API_KEY: TEST_API_KEY_1, CONF_SITE_ID: TEST_SITE_ID_1}
-        )
-        assert result.get("type") == FlowResultType.CREATE_ENTRY
 
 
 @pytest.mark.asyncio
@@ -622,18 +479,6 @@ async def test_entries_with_api_key_empt(hass: HomeAssistant) -> None:
     flow.hass = hass
 
     assert flow._entries_with_api_key("   ") == []
-
-
-@pytest.mark.asyncio
-async def test_options_entries_with_api_key_empty(hass: HomeAssistant) -> None:
-    """Options helper returns an empty list when asked with a blank API key."""
-    entry = create_mock_config_entry()
-    entry.add_to_hass(hass)
-
-    handler = EPAVicOptionFlowHandler(entry)
-    handler.hass = hass
-
-    assert handler._entries_with_api_key("   ") == []
 
 
 @pytest.mark.asyncio
@@ -975,215 +820,3 @@ async def test_reconfigure_aborts_active_reauth_flow(hass: HomeAssistant) -> Non
         DOMAIN,
         match_context={"source": "reauth", "entry_id": entry.entry_id},
     )
-
-
-@pytest.mark.asyncio
-async def test_options_flow_updates_all_having_same_old_key(
-    hass: HomeAssistant,
-) -> None:
-    """Options flow updates shared API key for all entries that used the old key."""
-    entry_1 = create_mock_config_entry()
-    entry_1.add_to_hass(hass)
-
-    entry_2 = create_mock_config_entry(
-        options={
-            **DEFAULT_OPTIONS,
-            CONF_SITE_ID: TEST_SITE_ID_2,
-            CONF_SITE_NAME: TEST_SITE_NAME_2,
-        }
-    )
-    entry_2.add_to_hass(hass)
-
-    unrelated = create_mock_config_entry(
-        options={
-            **DEFAULT_OPTIONS,
-            CONF_API_KEY: TEST_API_KEY_2,
-            CONF_SITE_ID: "10003",
-            CONF_SITE_NAME: "Test Site 3",
-        }
-    )
-    unrelated.add_to_hass(hass)
-
-    with patch("homeassistant.components.epa_victoria_air_quality.config_flow.Collector", autospec=True) as mock_collector_cls:
-        mock_collector = mock_collector_cls.return_value
-        mock_collector.async_setup = AsyncMock(return_value=None)
-        mock_collector.valid_location_list.return_value = True
-        mock_collector.get_location_list.return_value = [
-            {"value": TEST_SITE_ID_1, "label": "Test Site 1"},
-            {"value": TEST_SITE_ID_2, "label": TEST_SITE_NAME_2},
-        ]
-        mock_collector.get_location.return_value = TEST_SITE_ID_1
-        mock_collector.async_update = AsyncMock(return_value=None)
-
-        result = await hass.config_entries.options.async_init(entry_1.entry_id)
-        assert result.get("type") == FlowResultType.FORM
-        assert result.get("step_id") == "init"
-
-        result = await hass.config_entries.options.async_configure(
-            result["flow_id"],
-            user_input={CONF_API_KEY: "new-shared-key"},
-        )
-        assert result.get("type") == FlowResultType.FORM
-        assert result.get("step_id") == "location"
-
-        result = await hass.config_entries.options.async_configure(
-            result["flow_id"],
-            user_input={CONF_API_KEY: "new-shared-key", CONF_SITE_ID: TEST_SITE_ID_1},
-        )
-        assert result.get("type") == FlowResultType.CREATE_ENTRY
-        await hass.async_block_till_done()
-
-    updated_2 = hass.config_entries.async_get_entry(entry_2.entry_id)
-    updated_3 = hass.config_entries.async_get_entry(unrelated.entry_id)
-
-    assert updated_2 is not None
-    assert updated_3 is not None
-    assert updated_2.options[CONF_API_KEY] == "new-shared-key"
-    assert updated_3.options[CONF_API_KEY] == TEST_API_KEY_2
-
-
-@pytest.mark.asyncio
-async def test_options_flow_key_change_aborts_reauth_flows(
-    hass: HomeAssistant,
-) -> None:
-    """Options flow key changes clear active reauth flows."""
-    entry_1 = create_mock_config_entry()
-    entry_1.add_to_hass(hass)
-
-    entry_2 = create_mock_config_entry(
-        options={
-            **DEFAULT_OPTIONS,
-            CONF_SITE_ID: TEST_SITE_ID_2,
-            CONF_SITE_NAME: TEST_SITE_NAME_2,
-        }
-    )
-    entry_2.add_to_hass(hass)
-
-    with patch("homeassistant.components.epa_victoria_air_quality.config_flow.Collector", autospec=True) as mock_collector_cls:
-        mock_collector = mock_collector_cls.return_value
-        mock_collector.async_setup = AsyncMock(return_value=None)
-        mock_collector.valid_location_list.return_value = True
-        mock_collector.get_location_list.return_value = [
-            {"value": TEST_SITE_ID_1, "label": "Test Site 1"},
-            {"value": TEST_SITE_ID_2, "label": TEST_SITE_NAME_2},
-        ]
-        mock_collector.get_location.return_value = TEST_SITE_ID_1
-        mock_collector.async_update = AsyncMock(return_value=None)
-
-        reauth_1 = await hass.config_entries.flow.async_init(
-            DOMAIN,
-            context={"source": "reauth", "entry_id": entry_1.entry_id},
-            data=entry_1.options,
-        )
-        assert reauth_1.get("type") == FlowResultType.FORM
-
-        result = await hass.config_entries.options.async_init(entry_1.entry_id)
-        result = await hass.config_entries.options.async_configure(
-            result["flow_id"],
-            user_input={CONF_API_KEY: "new-shared-key"},
-        )
-        assert result.get("step_id") == "location"
-
-        result = await hass.config_entries.options.async_configure(
-            result["flow_id"],
-            user_input={CONF_API_KEY: "new-shared-key", CONF_SITE_ID: TEST_SITE_ID_1},
-        )
-        assert result.get("type") == FlowResultType.CREATE_ENTRY
-        await hass.async_block_till_done()
-
-    assert not hass.config_entries.flow.async_progress_by_handler(
-        DOMAIN,
-        match_context={"source": "reauth", "entry_id": entry_1.entry_id},
-    )
-    assert not hass.config_entries.flow.async_progress_by_handler(
-        DOMAIN,
-        match_context={"source": "reauth", "entry_id": entry_2.entry_id},
-    )
-
-
-@pytest.mark.asyncio
-async def test_options_flow_key_change_reloads_sibling_in_error(
-    hass: HomeAssistant,
-) -> None:
-    """Options flow key change loads sibling entries that are in an error state, like after restart with an unchanged old key."""
-    entry_1 = create_mock_config_entry()
-    entry_1.add_to_hass(hass)
-
-    entry_2 = create_mock_config_entry(
-        options={
-            **DEFAULT_OPTIONS,
-            CONF_SITE_ID: TEST_SITE_ID_2,
-            CONF_SITE_NAME: TEST_SITE_NAME_2,
-        },
-        state=ConfigEntryState.SETUP_ERROR,
-    )
-    entry_2.add_to_hass(hass)
-
-    with (
-        patch("homeassistant.components.epa_victoria_air_quality.config_flow.Collector", autospec=True) as mock_collector_cls,
-        patch.object(hass.config_entries, "async_reload", AsyncMock()) as mock_reload,
-    ):
-        mock_collector = mock_collector_cls.return_value
-        mock_collector.async_setup = AsyncMock(return_value=None)
-        mock_collector.valid_location_list.return_value = True
-        mock_collector.get_location_list.return_value = [
-            {"value": TEST_SITE_ID_1, "label": "Test Site 1"},
-            {"value": TEST_SITE_ID_2, "label": TEST_SITE_NAME_2},
-        ]
-        mock_collector.get_location.return_value = TEST_SITE_ID_1
-        mock_collector.async_update = AsyncMock(return_value=None)
-
-        result = await hass.config_entries.options.async_init(entry_1.entry_id)
-        result = await hass.config_entries.options.async_configure(
-            result["flow_id"],
-            user_input={CONF_API_KEY: "new-shared-key"},
-        )
-        assert result.get("step_id") == "location"
-
-        result = await hass.config_entries.options.async_configure(
-            result["flow_id"],
-            user_input={CONF_API_KEY: "new-shared-key", CONF_SITE_ID: TEST_SITE_ID_1},
-        )
-        assert result.get("type") == FlowResultType.CREATE_ENTRY
-
-    assert mock_reload.await_args_list == [
-        call(entry_2.entry_id),
-        call(entry_1.entry_id),
-    ]
-
-
-@pytest.mark.asyncio
-async def test_options_flow_key_change_reloads_current_error_state(
-    hass: HomeAssistant,
-) -> None:
-    """Options key change reloads the edited entry when no listener is present, like after restart."""
-    entry_1 = create_mock_config_entry(state=ConfigEntryState.SETUP_ERROR)
-    entry_1.add_to_hass(hass)
-
-    with (
-        patch("homeassistant.components.epa_victoria_air_quality.config_flow.Collector", autospec=True) as mock_collector_cls,
-        patch.object(hass.config_entries, "async_reload", AsyncMock()) as mock_reload,
-    ):
-        mock_collector = mock_collector_cls.return_value
-        mock_collector.async_setup = AsyncMock(return_value=None)
-        mock_collector.valid_location_list.return_value = True
-        mock_collector.get_location_list.return_value = [
-            {"value": TEST_SITE_ID_1, "label": "Test Site 1"},
-        ]
-        mock_collector.get_location.return_value = TEST_SITE_ID_1
-        mock_collector.async_update = AsyncMock(return_value=None)
-
-        result = await hass.config_entries.options.async_init(entry_1.entry_id)
-        result = await hass.config_entries.options.async_configure(
-            result["flow_id"],
-            user_input={CONF_API_KEY: "new-shared-key"},
-        )
-        assert result.get("step_id") == "location"
-
-        result = await hass.config_entries.options.async_configure(
-            result["flow_id"],
-            user_input={CONF_API_KEY: "new-shared-key", CONF_SITE_ID: TEST_SITE_ID_1},
-        )
-        assert result.get("type") == FlowResultType.CREATE_ENTRY
-
-    mock_reload.assert_awaited_once_with(entry_1.entry_id)
