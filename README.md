@@ -37,17 +37,19 @@ Sometimes sensors go off line: example of Melbourne CBD Sensor when it goes offl
 
 [<img src="https://github.com/BJReplay/EPA_AirQuality_HA/blob/main/.github/SCREENSHOTS/1HR_AV_Unavailable.png">](https://github.com/BJReplay/EPA_AirQuality_HA/blob/main/.github/SCREENSHOTS/1HR_AV_Unavailable.png)
 
-Inspired by [@loryanstrant](https://github.com/loryanstrant) who published [this article](https://www.loryanstrant.com/2023/07/23/track-air-quality-with-home-assistant-and-epa-data/) that helped me track air quality in HA, and created the first repo for this project.
-
-Thanks to @autoSteve who provided much of the python knowledge and assistance over at [HA Solcast PV Solar Forecast Integration](https://github.com/BJReplay/ha-solcast-solar) and to @bremor and @Makin-Things who provided inspiration (and a model to steal for a cloud polling integration) with their fantastic [BoM integration](https://github.com/bremor/bureau_of_meteorology).
-
 This integration supports multiple locations, so you can monitor more than one EPA station in Home Assistant.
 
 ## Location differences
 
-There are (at time of writing) 19 "standard" locations providing accurate PM2.5 pollutant data, and in may cases even more data. There are also many more "sensor" locations, and these provide an indicative air particle content. These locations are differentiated by the label "(sensor/indicative)", and provide a generally lower quality guidance.
+There are (at time of writing) 19 "standard" locations providing accurate PM2.5 pollutant data, and in many cases even more data. There are also a lot more "sensor" locations, and these provide an indicative air particle content. These locations are differentiated by the label "(sensor/indicative)", and provide a generally lower quality guidance.
 
 The list of stations can be viewed at the [EPA Air and Water Quality](https://www.epa.vic.gov.au/check-air-and-water-quality?tab=list) site in list view.  The standard locations are listed at the top of the list, with the pollutants recorded by each station shown if you click on the Pollutants tab, and the sensor monitoring sites are listed at the bottom of the list.
+
+## Changing API key
+
+If the API key is regenerated in the EPA developer portal and not updated in the integration, then a reconfiguration issue will be raised withing fifteen minutes. This allows entry of the new key.
+
+You are also able to update to the new key immediately by using the "Reconfigure" function. In `Settings` | `Devices & services` | `Integrations` | `EPA Victoria Air Quality` select a service menu (three dots) and choose `Reconfigure`. If there is more than one service using the same API key then, by default the API key will be changed for all services using it. This can be optionally overridden if desired.
 
 ## Entities Exposed By This Integration
 
@@ -88,14 +90,15 @@ CO AQI is not currently provided because the available EPA time series in this i
 
 ### Health advice entities
 
-| Entity family | Hourly advice | Daily advice |
-| --- | --- | --- |
-| PM2.5 | Yes (`Hourly Health Advice`) | Yes (`Daily Health Advice`) |
-| PM10 | Yes | Yes |
-| NO2 | Yes | Yes |
-| O3 | Yes | Yes |
-| SO2 | Yes | Yes |
-| CO | Yes | Yes |
+| Entity family | Hourly advice | Daily advice | Note |
+| --- | --- | --- | --- |
+| PM2.5 | Yes | Yes | |
+| PM10 | Yes | Yes | |
+| NO2 | Yes | Yes | |
+| O3 | Yes | Yes | |
+| SO2 | Yes | Yes | |
+| CO | Yes | Yes | |
+| Overall health advice | Yes | Yes | Based on PM2.5 or 'worst overall' |
 
 ## Sensor Attributes
 
@@ -116,7 +119,7 @@ Primary AQI sensors (`Hourly AQI`, `Daily AQI`) include:
 - `configured_source`: The strategy configured in options (`PM2.5` or `Overall`).
 - `aqi_source`: Which sub-index actually produced the current AQI value.
 
-This allows for templates such as the following simple example that uses the base (first sensor defined) and casts it to a float with a default value of the Brighton sensor - which, if it doesn't have a value, uses the Spotswood sensor
+This allows for templates such as the following simple example that uses the base (first sensor defined) and casts it to a float with a default value of the Brighton sensor - which, if it doesn't have a value, uses the Spotswood sensor.
 
 ``` yaml
   states('sensor.epa_air_quality_hourly_aqi')
@@ -126,4 +129,10 @@ This allows for templates such as the following simple example that uses the bas
             )
 ```
 
-Another example is shown in discussion https://github.com/BJReplay/EPA_AirQuality_HA/discussions/15
+Another example is shown in discussion https://github.com/BJReplay/EPA_AirQuality_HA/discussions/15.
+
+## Acknowledgements
+
+Inspired by [@loryanstrant](https://github.com/loryanstrant) who published [this article](https://www.loryanstrant.com/2023/07/23/track-air-quality-with-home-assistant-and-epa-data/) that helped me track air quality in HA, and created the first repo for this project.
+
+Thanks to @autoSteve who provided much of the python knowledge and assistance over at [HA Solcast PV Solar Forecast Integration](https://github.com/BJReplay/ha-solcast-solar) and to @bremor and @Makin-Things who provided inspiration (and a model to steal for a cloud polling integration) with their fantastic [BoM integration](https://github.com/bremor/bureau_of_meteorology).
