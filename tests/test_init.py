@@ -308,18 +308,18 @@ async def test_update_options_skip_reload_during_reauth(hass: HomeAssistant) -> 
     ):
         await async_update_options(hass, entry)
 
-    mock_progress.assert_called_once_with(
-        "epa_victoria_air_quality",
-        match_context={"source": "reauth", "entry_id": "test_entry"},
-    )
+    assert mock_progress.call_args_list == [
+        (("epa_victoria_air_quality",), {"match_context": {"source": "reauth"}}),
+        (("epa_victoria_air_quality",), {"match_context": {"source": "reconfigure"}}),
+    ]
     mock_reload.assert_not_called()
 
 
 @pytest.mark.asyncio
-async def test_update_options_reload_reauth_for_other_instance(
+async def test_update_options_skip_reload_reauth_for_other_instance(
     hass: HomeAssistant,
 ) -> None:
-    """Should still reload if reauth context does not match this entry."""
+    """Should skip listener reload when any reauth flow is active for the domain."""
     entry = MagicMock()
     entry.entry_id = "test_entry"
     entry.options = {
@@ -355,8 +355,8 @@ async def test_update_options_reload_reauth_for_other_instance(
     ):
         await async_update_options(hass, entry)
 
-    mock_progress.assert_called_once_with(
-        "epa_victoria_air_quality",
-        match_context={"source": "reauth", "entry_id": "test_entry"},
-    )
-    mock_reload.assert_awaited_once_with("test_entry")
+    assert mock_progress.call_args_list == [
+        (("epa_victoria_air_quality",), {"match_context": {"source": "reauth"}}),
+        (("epa_victoria_air_quality",), {"match_context": {"source": "reconfigure"}}),
+    ]
+    mock_reload.assert_not_called()

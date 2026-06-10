@@ -820,3 +820,32 @@ async def test_reconfigure_aborts_active_reauth_flow(hass: HomeAssistant) -> Non
         DOMAIN,
         match_context={"source": "reauth", "entry_id": entry.entry_id},
     )
+
+
+@pytest.mark.asyncio
+async def test_reconfigure_abort_when_key_unchanged(hass: HomeAssistant) -> None:
+    """Reconfigure aborts early when submitted API key matches current key."""
+    entry = create_mock_config_entry()
+    entry.add_to_hass(hass)
+
+    with (
+        patch("homeassistant.components.epa_victoria_air_quality.config_flow.Collector", autospec=True) as mock_collector_cls,
+        patch.object(hass.config_entries, "async_reload", AsyncMock()) as mock_reload,
+    ):
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN,
+            context={"source": "reconfigure", "entry_id": entry.entry_id},
+            data=entry.options,
+        )
+        assert result.get("type") == FlowResultType.FORM
+        assert result.get("step_id") == "reconfigure_confirm"
+
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            user_input={CONF_API_KEY: TEST_API_KEY_1},
+        )
+
+    assert result.get("type") == FlowResultType.ABORT
+    assert result.get("reason") == "not_reconfigured"
+    mock_collector_cls.assert_not_called()
+    mock_reload.assert_not_awaited()
