@@ -37,7 +37,15 @@ Sometimes sensors go off line: example of Melbourne CBD Sensor when it goes offl
 
 [<img src="https://github.com/BJReplay/EPA_AirQuality_HA/blob/main/.github/SCREENSHOTS/1HR_AV_Unavailable.png">](https://github.com/BJReplay/EPA_AirQuality_HA/blob/main/.github/SCREENSHOTS/1HR_AV_Unavailable.png)
 
+## Multiple locations
+
 This integration supports multiple locations, so you can monitor more than one EPA station in Home Assistant.
+
+Go to the integration at `Settings` | `Devices & services` and add another service. The new location instance will be set up with its own entities. During set up the API key will default to that of existing service(s), making this process straightforward.
+
+> [!NOTE]
+>
+> If you're a user from pre-v0.4.6 then the entities from your first set up are not going to be named after the location they represent. To make these consistent with the new multi-location naming, remove that integration service and re-add it. This will change entity names, so dashboards and any automation will need updating to match.
 
 ## Location differences
 
@@ -47,9 +55,15 @@ The list of stations can be viewed at the [EPA Air and Water Quality](https://ww
 
 ## Changing API key
 
-If the API key is regenerated in the EPA developer portal and not updated in the integration, then a reconfiguration issue will be raised withing fifteen minutes. This allows entry of the new key.
+If the API key is regenerated in the EPA developer portal and not updated in the integration, then a reconfiguration issue will be raised within fifteen minutes. This allows for entry of the new key.
 
-You are also able to update to the new key immediately by using the "Reconfigure" function. In `Settings` | `Devices & services` | `Integrations` | `EPA Victoria Air Quality` select a service menu (three dots) and choose `Reconfigure`. If there is more than one service using the same API key then, by default the API key will be changed for all services using it. This can be optionally overridden if desired.
+You are also able to update to the new key immediately by using the reconfigure function. In `Settings` | `Devices & services` | `Integrations` | `EPA Victoria Air Quality` select a service menu (three dots) and choose `Reconfigure`. If there are more than one service using the same API key then the key will be changed for all services using the old key. This can be optionally overridden if desired, setting a new key for a single service only.
+
+## Changing locations
+
+Once an integration service has been set up it cannot be changed to a different location. This is because entity naming is distinct for each location.
+
+To switch locations, set up a new service for the different location and then delete the old service. Update dashboards and other entity references to suit the new location.
 
 ## Entities Exposed By This Integration
 
