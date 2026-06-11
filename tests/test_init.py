@@ -53,7 +53,7 @@ async def test_migrate_entry_version_1_to_4(hass: HomeAssistant) -> None:
 
     assert result is True
     call_kwargs = mock_update.call_args.kwargs
-    assert call_kwargs["version"] == 4
+    assert call_kwargs["version"] == 5
     assert call_kwargs["unique_id"] == TEST_SITE_ID_1
     assert "title" not in call_kwargs
     assert call_kwargs["options"][CONF_SITE_ID] == TEST_SITE_ID_1
@@ -75,7 +75,7 @@ async def test_migrate_entry_version_3_to_4(hass: HomeAssistant) -> None:
 
     assert result is True
     call_kwargs = mock_update.call_args.kwargs
-    assert call_kwargs["version"] == 4
+    assert call_kwargs["version"] == 5
     assert call_kwargs["options"][CONF_AQI_SOURCE] == DEFAULT_AQI_SOURCE
 
 
@@ -96,7 +96,7 @@ async def test_migrate_entry_pre_v3_options_known_site_sets_title(hass: HomeAssi
 
     assert result is True
     call_kwargs = mock_update.call_args.kwargs
-    assert call_kwargs["version"] == 4
+    assert call_kwargs["version"] == 5
     assert call_kwargs["unique_id"] == known_site_id
     assert call_kwargs["title"] == f"{TITLE} - {known_site_name}"
     assert call_kwargs["options"][CONF_SITE_ID] == known_site_id
@@ -121,12 +121,62 @@ async def test_migrate_entry_already_has_site_id(hass: HomeAssistant) -> None:
 
     assert result is True
     call_kwargs = mock_update.call_args.kwargs
-    assert call_kwargs["version"] == 4
+    assert call_kwargs["version"] == 5
     # options is always updated during migration to set CONF_LEGACY_UNIQUE_IDS.
     assert call_kwargs["options"][CONF_LEGACY_UNIQUE_IDS] is True
     assert call_kwargs["options"][CONF_AQI_SOURCE] == DEFAULT_AQI_SOURCE
     # Existing CONF_SITE_ID must be preserved unchanged.
     assert call_kwargs["options"][CONF_SITE_ID] == TEST_SITE_ID_1
+
+
+@pytest.mark.asyncio
+async def test_migrate_entry_version_4_to_5_replaces_site_id_with_known_name(
+    hass: HomeAssistant,
+) -> None:
+    """Migrating to v5 replaces known site IDs in title/entity names, keeping IDs stable."""
+    known_site_id, known_site_name = next(iter(KNOWN_SITES.items()))
+
+    mock_entry = MagicMock()
+    mock_entry.version = 4
+    mock_entry.entry_id = "test_entry_id"
+    mock_entry.title = f"{TITLE} - {known_site_id}"
+    mock_entry.options = {
+        CONF_API_KEY: TEST_API_KEY_1,
+        CONF_SITE_ID: known_site_id,
+        CONF_LEGACY_UNIQUE_IDS: True,
+        CONF_AQI_SOURCE: DEFAULT_AQI_SOURCE,
+    }
+
+    mock_registry = MagicMock()
+    migrated_entity = MagicMock()
+    migrated_entity.entity_id = f"sensor.epa_air_quality_{known_site_id.replace('-', '_')}_hourly_so2_aqi"
+    migrated_entity.name = "Hourly SO2 AQI"
+
+    unaffected_entity = MagicMock()
+    unaffected_entity.entity_id = "sensor.epa_air_quality_hourly_pm25"
+    unaffected_entity.name = "Hourly PM25"
+
+    with (
+        patch.object(hass.config_entries, "async_update_entry") as mock_update,
+        patch(
+            "homeassistant.components.epa_victoria_air_quality.er.async_get",
+            return_value=mock_registry,
+        ),
+        patch(
+            "homeassistant.components.epa_victoria_air_quality.er.async_entries_for_config_entry",
+            return_value=[migrated_entity, unaffected_entity],
+        ),
+    ):
+        result = await async_migrate_entry(hass, mock_entry)
+
+    assert result is True
+    call_kwargs = mock_update.call_args.kwargs
+    assert call_kwargs["version"] == 5
+    assert call_kwargs["title"] == f"{TITLE} - {known_site_name}"
+    mock_registry.async_update_entity.assert_any_call(
+        migrated_entity.entity_id,
+        new_entity_id=f"sensor.epa_air_quality_{known_site_name.replace(' ', '_').lower()}_hourly_so2_aqi",
+    )
 
 
 @pytest.mark.asyncio

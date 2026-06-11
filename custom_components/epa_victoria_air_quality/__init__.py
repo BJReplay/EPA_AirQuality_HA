@@ -9,7 +9,7 @@ from homeassistant.config_entries import SOURCE_REAUTH, SOURCE_RECONFIGURE, Conf
 from homeassistant.const import CONF_API_KEY, CONF_LATITUDE, CONF_LONGITUDE, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
-from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import device_registry as dr, entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .collector import Collector, EPAAuthError
@@ -21,6 +21,7 @@ from .const import (
     DEFAULT_AQI_SOURCE,
     DOMAIN,
     KNOWN_SITES,
+    SITE_TYPE_SENSOR_LABEL_SUFFIX,
     TITLE,
 )
 from .coordinator import EPAData, EPADataUpdateCoordinator
@@ -80,6 +81,28 @@ async def async_migrate_entry(hass: HomeAssistant, entry: EPAConfigEntry) -> boo
         new_options.setdefault(CONF_AQI_SOURCE, DEFAULT_AQI_SOURCE)
         update_kwargs["options"] = new_options
         update_kwargs["version"] = 4
+
+    if entry.version < 5:
+        new_options = dict(entry.options)
+        if new_options.get(CONF_LEGACY_UNIQUE_IDS):
+            site_id = str(new_options.get(CONF_SITE_ID, ""))
+            if site_id and (site_name := KNOWN_SITES.get(site_id)) is not None:
+                # Change the title to use location name if it contains the site ID instead.
+                current_title = str(entry.title)
+                if site_id in current_title:
+                    update_kwargs["title"] = current_title.replace(site_id, site_name)
+
+                # Change any entity names using the site ID to use the location name instead. Do not change the unique IDs, which will be legacy convention already.
+                entity_registry = er.async_get(hass)
+                entities = er.async_entries_for_config_entry(entity_registry, entry.entry_id)
+                site_id_stripped = site_id.replace("-", "_")
+                site_name_stripped = site_name.replace(SITE_TYPE_SENSOR_LABEL_SUFFIX, "").replace(" ", "_").lower()
+
+                for entity_entry in entities:
+                    new_id = entity_entry.entity_id.replace(site_id_stripped, site_name_stripped)
+                    entity_registry.async_update_entity(entity_entry.entity_id, new_entity_id=new_id)
+
+        update_kwargs["version"] = 5
 
     if update_kwargs:
         hass.config_entries.async_update_entry(entry, **update_kwargs)

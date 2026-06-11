@@ -54,7 +54,7 @@ class EPAVicConfigFlow(ConfigFlow, domain=DOMAIN):
         self._reauth_api_key: str = ""
         self._reconfigure_api_key: str = ""
 
-    VERSION = 4
+    VERSION = 5
 
     @staticmethod
     @callback
