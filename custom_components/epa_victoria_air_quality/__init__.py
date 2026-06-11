@@ -20,6 +20,7 @@ from .const import (
     CONF_SITE_NAME,
     DEFAULT_AQI_SOURCE,
     DOMAIN,
+    KNOWN_SITES,
     TITLE,
 )
 from .coordinator import EPAData, EPADataUpdateCoordinator
@@ -61,7 +62,12 @@ async def async_migrate_entry(hass: HomeAssistant, entry: EPAConfigEntry) -> boo
             update_kwargs["options"] = new_options
 
             # Fix the entry title if it never got a location suffix.
-            if entry.title == TITLE:
+            # If the site name is missing, attempt to look it up based on the site ID.
+            if new_options.get(CONF_SITE_NAME) is None:
+                site_name = KNOWN_SITES.get(site_id)
+                if site_name:
+                    new_options[CONF_SITE_NAME] = site_name
+            if entry.title == TITLE and new_options.get(CONF_SITE_NAME) is not None:
                 location_name = new_options.get(CONF_SITE_NAME) or site_id
                 update_kwargs["title"] = f"{TITLE} - {location_name}"
 
