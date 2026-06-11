@@ -134,7 +134,7 @@ async def test_migrate_entry_version_4_to_5_replaces_site_id_with_known_name(
     hass: HomeAssistant,
 ) -> None:
     """Migrating to v5 replaces known site IDs in title/entity names, keeping IDs stable."""
-    known_site_id, known_site_name = next(iter(KNOWN_SITES.items()))
+    known_site_id, known_site_name = next((site, name) for site, name in KNOWN_SITES.items() if " " in name)
 
     mock_entry = MagicMock()
     mock_entry.version = 4
