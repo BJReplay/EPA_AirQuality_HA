@@ -19,6 +19,7 @@ from homeassistant.components.epa_victoria_air_quality.const import (
     CONF_SITE_ID,
     CONF_SITE_NAME,
     DEFAULT_AQI_SOURCE,
+    KNOWN_SITES,
     TITLE,
 )
 from homeassistant.config_entries import ConfigEntryState
@@ -36,7 +37,10 @@ from . import (
 
 @pytest.mark.asyncio
 async def test_migrate_entry_version_1_to_4(hass: HomeAssistant) -> None:
-    """Migrating a v1 entry moves config to options, sets unique_id/title, and adds AQI source default."""
+    """Migrating a v1 entry moves config to options and sets defaults.
+
+    Unknown site IDs should not force a title suffix during migration.
+    """
     mock_entry = MagicMock()
     mock_entry.version = 1
     mock_entry.unique_id = None
@@ -51,7 +55,7 @@ async def test_migrate_entry_version_1_to_4(hass: HomeAssistant) -> None:
     call_kwargs = mock_update.call_args.kwargs
     assert call_kwargs["version"] == 4
     assert call_kwargs["unique_id"] == TEST_SITE_ID_1
-    assert call_kwargs["title"] == f"{TITLE} - {TEST_SITE_ID_1}"
+    assert "title" not in call_kwargs
     assert call_kwargs["options"][CONF_SITE_ID] == TEST_SITE_ID_1
     assert call_kwargs["options"][CONF_API_KEY] == TEST_API_KEY_1
     assert call_kwargs["options"][CONF_LEGACY_UNIQUE_IDS] is True
@@ -72,6 +76,33 @@ async def test_migrate_entry_version_3_to_4(hass: HomeAssistant) -> None:
     assert result is True
     call_kwargs = mock_update.call_args.kwargs
     assert call_kwargs["version"] == 4
+    assert call_kwargs["options"][CONF_AQI_SOURCE] == DEFAULT_AQI_SOURCE
+
+
+@pytest.mark.asyncio
+async def test_migrate_entry_pre_v3_options_known_site_sets_title(hass: HomeAssistant) -> None:
+    """A pre-v3 entry with a known site ID gains site name and title during migration."""
+    known_site_id, known_site_name = next(iter(KNOWN_SITES.items()))
+
+    mock_entry = MagicMock()
+    mock_entry.version = 2
+    mock_entry.unique_id = None
+    mock_entry.title = TITLE
+    mock_entry.options = {CONF_API_KEY: TEST_API_KEY_1, CONF_SITE_ID: known_site_id}
+    mock_entry.data = {}
+
+    with patch.object(hass.config_entries, "async_update_entry") as mock_update:
+        result = await async_migrate_entry(hass, mock_entry)
+
+    assert result is True
+    call_kwargs = mock_update.call_args.kwargs
+    assert call_kwargs["version"] == 4
+    assert call_kwargs["unique_id"] == known_site_id
+    assert call_kwargs["title"] == f"{TITLE} - {known_site_name}"
+    assert call_kwargs["options"][CONF_SITE_ID] == known_site_id
+    assert call_kwargs["options"][CONF_SITE_NAME] == known_site_name
+    assert call_kwargs["options"][CONF_API_KEY] == TEST_API_KEY_1
+    assert call_kwargs["options"][CONF_LEGACY_UNIQUE_IDS] is True
     assert call_kwargs["options"][CONF_AQI_SOURCE] == DEFAULT_AQI_SOURCE
 
 
