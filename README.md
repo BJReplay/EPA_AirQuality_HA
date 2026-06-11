@@ -29,10 +29,6 @@ Then, after a few moments, while it is finding all EPA monitoring stations, and 
 
 [<img src="https://github.com/BJReplay/EPA_AirQuality_HA/blob/main/.github/SCREENSHOTS/Location_List.png">](https://github.com/BJReplay/EPA_AirQuality_HA/blob/main/.github/SCREENSHOTS/Location_List.png)
 
-If you drop the images (`good-aqi.png`, `fair-aqi.png`, `poor-aqi.png`, `verypoor-aql.png`, and `extremelypoor-aqi.png`) into your `www` directory (or create it, if required), the `sample-card.yaml` will create the sample below.
-
-[<img src="https://github.com/BJReplay/EPA_AirQuality_HA/blob/main/.github/SCREENSHOTS/sample_card.png">](https://github.com/BJReplay/EPA_AirQuality_HA/blob/main/.github/SCREENSHOTS/sample_card.png)
-
 Sometimes sensors go off line: example of Melbourne CBD Sensor when it goes offline - integration switches to 24 Hour sensor, and shows the Data source as 24HR_AV
 
 [<img src="https://github.com/BJReplay/EPA_AirQuality_HA/blob/main/.github/SCREENSHOTS/1HR_AV_Unavailable.png">](https://github.com/BJReplay/EPA_AirQuality_HA/blob/main/.github/SCREENSHOTS/1HR_AV_Unavailable.png)
@@ -139,19 +135,11 @@ Primary AQI sensors (`Hourly AQI`, `Daily AQI`) include:
 
 ## Examples
 
-An example templates to produce a fall-back AQI reading based on location availability.
+If you drop the images (`good-aqi.png`, `fair-aqi.png`, `poor-aqi.png`, `verypoor-aql.png`, and `extremelypoor-aqi.png`) into your `www` directory (or create it, if required), the `sample-card.yaml` will create the sample below.
 
-This uses the preferred location, with a secondary value of the Brighton sensor, which, if it doesn't have a value, uses the Spotswood sensor. Values converted to float as is needed to get a numeric from a string representation.
+Add the yaml to a dashboard: you can do this by adding a card to a dashboard, choosing `custom card`, and pasting in the all of contents of `sample-card.yaml` replacing the `type: ""` sample, and before you save the card, hit `Ctrl+F`, find `~location~`, and replace with the location of your sensor - e.g. `melbourne_cbd`.
 
-``` yaml
-  states('sensor.epa_air_quality_hourly_aqi')
-         | float ( states('sensor.epa_air_quality_brighton_epa_air_quality_hourly_aqi')
-                 | float ( states('sensor.epa_air_quality_spotswood_epa_air_quality_hourly_aqi')
-                 )
-            )
-```
-
-Another example is shown in discussion https://github.com/BJReplay/EPA_AirQuality_HA/discussions/15.
+[<img src="https://github.com/BJReplay/EPA_AirQuality_HA/blob/main/.github/SCREENSHOTS/sample_card.png">](https://github.com/BJReplay/EPA_AirQuality_HA/blob/main/.github/SCREENSHOTS/sample_card.png)
 
 ## Acknowledgements
 
