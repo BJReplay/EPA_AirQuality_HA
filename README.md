@@ -15,7 +15,7 @@ In order to use this integration, you will need to sign up to the [EPA Developer
 
 Once you have signed up and have a log in, go to the [Environment Monitoring](https://portal.api.epa.vic.gov.au/product#product=environment-monitoring) page, select a name (such as home-assistant) for your new subscription, and hit `subscribe`.
 
-This will create a new subscription, with a Primary and Secondary key.  You can use either API key, and you can return to your [profile page](https://portal.api.epa.vic.gov.au/profile) at any time to review the keys, so there is no need to record them in your password manager (provided, of course, that you have recorded your login to to the EPA Developer portal in your password manager).
+This will create a new subscription, with a Primary and Secondary key.  You can use either API key, and you can return to your [profile page](https://portal.api.epa.vic.gov.au/profile) at any time to review the keys, so there is no need to record them in your password manager (provided, of course, that you have recorded your login to the EPA Developer portal in your password manager).
 
 Once you have subscribed, you can set up this integration.
 
@@ -53,11 +53,11 @@ The list of stations can be viewed at the [EPA Air and Water Quality](https://ww
 
 If the API key is regenerated in the EPA developer portal and not updated in the integration then a reconfiguration issue will be raised within fifteen minutes. This allows for entry of the new key.
 
-You are also able to update to the new key immediately by using the reconfigure function. In `Settings` | `Devices & services` | `Integrations` | `EPA Victoria Air Quality` select a service menu (three dots) and choose `Reconfigure`. If there are more than one service using the same API key then the key will be changed for all services using the old key. This can be optionally overridden if desired, setting a new key for a single service only.
+You are also able to update to the new key immediately by using the reconfigure function. In `Settings` | `Devices & services` | `Integrations` | `EPA Victoria Air Quality` select a service menu (three dots) and choose `Reconfigure`. If more than one service uses the same API key then the key will be changed for all services using the old key. This can optionally be overridden if desired, setting a new key for a single service only.
 
 > [!NOTE]
 >
-> If you are using a different key for differing integration services then you are going to need to select the correct one! The currant API key in use is displayed when the reconfigure flow is opened, so noting the prior key and its replacement might be handy in this circumstance.
+> If you are using different keys for differing services then you are going to need to select the correct one! The current API key in use is displayed when the reconfigure flow is opened, so noting the prior key and its replacement might be handy in this circumstance.
 
 ## Changing locations
 
