@@ -30,7 +30,11 @@ DEFAULT_OPTIONS = {
 }
 
 
-def create_mock_config_entry(data: dict[str, Any] | None = None, options: dict[str, Any] | None = None) -> MockConfigEntry:
+def create_mock_config_entry(
+    data: dict[str, Any] | None = None,
+    options: dict[str, Any] | None = None,
+    **kwargs: Any,
+) -> MockConfigEntry:
     """Create a mock config entry for EPA Victoria Air Quality.
 
     Defaults to the v4 format: config stored in options, empty data.
@@ -43,4 +47,5 @@ def create_mock_config_entry(data: dict[str, Any] | None = None, options: dict[s
         unique_id=TEST_SITE_ID_1,
         title=f"EPA Air Quality - {TEST_SITE_NAME_1}",
         version=4,
+        **kwargs,
     )

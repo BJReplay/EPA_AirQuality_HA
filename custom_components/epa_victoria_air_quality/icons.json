@@ -1,0 +1,42 @@
+{
+  "entity": {
+    "sensor": {
+      "daily_aqi_pollutant": {
+        "default": "mdi:air-filter"
+      },
+      "daily_health_advice": {
+        "default": "mdi:information-outline"
+      },
+      "daily_measurement": {
+        "default": "mdi:chemical-weapon"
+      },
+      "daily_overall_aqi": {
+        "default": "mdi:air-filter"
+      },
+      "daily_primary_aqi": {
+        "default": "mdi:air-filter"
+      },
+      "daily_primary_health_advice": {
+        "default": "mdi:information-outline"
+      },
+      "hourly_aqi_pollutant": {
+        "default": "mdi:air-filter"
+      },
+      "hourly_health_advice": {
+        "default": "mdi:information-outline"
+      },
+      "hourly_measurement": {
+        "default": "mdi:chemical-weapon"
+      },
+      "hourly_overall_aqi": {
+        "default": "mdi:air-filter"
+      },
+      "hourly_primary_aqi": {
+        "default": "mdi:air-filter"
+      },
+      "hourly_primary_health_advice": {
+        "default": "mdi:information-outline"
+      }
+    }
+  }
+}

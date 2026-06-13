@@ -7,13 +7,13 @@ cards:
           - type: conditional
             conditions:
               - condition: state
-                entity: sensor.epa_air_quality_hourly_health_advice
+                entity: sensor.epa_air_quality_~location~_hourly_health_advice
                 state_not: unknown
               - condition: state
-                entity: sensor.epa_air_quality_hourly_health_advice
+                entity: sensor.epa_air_quality_~location~_hourly_health_advice
                 state_not: unavailable
               - condition: state
-                entity: sensor.epa_air_quality_hourly_health_advice
+                entity: sensor.epa_air_quality_~location~_hourly_health_advice
                 state: Good
             card:
               type: markdown
@@ -26,17 +26,17 @@ cards:
 
 
                 Hourly AQI is: <font size = 3px color = green> {{
-                states('sensor.epa_air_quality_hourly_aqi') }} </font></center>
+                states('sensor.epa_air_quality_~location~_hourly_aqi') }} </font></center>
           - type: conditional
             conditions:
               - condition: state
-                entity: sensor.epa_air_quality_hourly_health_advice
+                entity: sensor.epa_air_quality_~location~_hourly_health_advice
                 state_not: unknown
               - condition: state
-                entity: sensor.epa_air_quality_hourly_health_advice
+                entity: sensor.epa_air_quality_~location~_hourly_health_advice
                 state_not: unavailable
               - condition: state
-                entity: sensor.epa_air_quality_hourly_health_advice
+                entity: sensor.epa_air_quality_~location~_hourly_health_advice
                 state: Fair
             card:
               type: markdown
@@ -48,17 +48,17 @@ cards:
 
 
                 Hourly AQI is: <font size = 3px color = yellow> {{
-                states('sensor.epa_air_quality_hourly_aqi') }} </font></center>
+                states('sensor.epa_air_quality_~location~_hourly_aqi') }} </font></center>
           - type: conditional
             conditions:
               - condition: state
-                entity: sensor.epa_air_quality_hourly_health_advice
+                entity: sensor.epa_air_quality_~location~_hourly_health_advice
                 state_not: unknown
               - condition: state
-                entity: sensor.epa_air_quality_hourly_health_advice
+                entity: sensor.epa_air_quality_~location~_hourly_health_advice
                 state_not: unavailable
               - condition: state
-                entity: sensor.epa_air_quality_hourly_health_advice
+                entity: sensor.epa_air_quality_~location~_hourly_health_advice
                 state: Poor
             card:
               type: markdown
@@ -70,17 +70,17 @@ cards:
 
 
                 Hourly AQI is: <font size = 3px color = orange> {{
-                states('sensor.epa_air_quality_hourly_aqi') }} </font></center>
+                states('sensor.epa_air_quality_~location~_hourly_aqi') }} </font></center>
           - type: conditional
             conditions:
               - condition: state
-                entity: sensor.epa_air_quality_hourly_health_advice
+                entity: sensor.epa_air_quality_~location~_hourly_health_advice
                 state_not: unknown
               - condition: state
-                entity: sensor.epa_air_quality_hourly_health_advice
+                entity: sensor.epa_air_quality_~location~_hourly_health_advice
                 state_not: unavailable
               - condition: state
-                entity: sensor.epa_air_quality_hourly_health_advice
+                entity: sensor.epa_air_quality_~location~_hourly_health_advice
                 state: Very poor
             card:
               type: markdown
@@ -92,17 +92,17 @@ cards:
 
 
                 Hourly AQI is: <font size = 3px color = red> {{
-                states('sensor.epa_air_quality_hourly_aqi') }} </font></center>
+                states('sensor.epa_air_quality_~location~_hourly_aqi') }} </font></center>
           - type: conditional
             conditions:
               - condition: state
-                entity: sensor.epa_air_quality_hourly_health_advice
+                entity: sensor.epa_air_quality_~location~_hourly_health_advice
                 state_not: unknown
               - condition: state
-                entity: sensor.epa_air_quality_hourly_health_advice
+                entity: sensor.epa_air_quality_~location~_hourly_health_advice
                 state_not: unavailable
               - condition: state
-                entity: sensor.epa_air_quality_hourly_health_advice
+                entity: sensor.epa_air_quality_~location~_hourly_health_advice
                 state: Extremely poor
             card:
               type: markdown
@@ -114,9 +114,9 @@ cards:
 
 
                 Hourly AQI is: <font size = 3px color = purple> {{
-                states('sensor.epa_air_quality_hourly_aqi') }} </font></center>
+                states('sensor.epa_air_quality_~location~_hourly_aqi') }} </font></center>
       - type: gauge
-        entity: sensor.epa_air_quality_hourly_pm2_5
+        entity: sensor.epa_air_quality_~location~_hourly_pm2_5
         max: 500
         needle: true
         segments:
@@ -137,13 +137,13 @@ cards:
           - type: conditional
             conditions:
               - condition: state
-                entity: sensor.epa_air_quality_daily_health_advice
+                entity: sensor.epa_air_quality_~location~_daily_health_advice
                 state_not: unknown
               - condition: state
-                entity: sensor.epa_air_quality_daily_health_advice
+                entity: sensor.epa_air_quality_~location~_daily_health_advice
                 state_not: unavailable
               - condition: state
-                entity: sensor.epa_air_quality_daily_health_advice
+                entity: sensor.epa_air_quality_~location~_daily_health_advice
                 state: Good
             card:
               type: markdown
@@ -156,17 +156,17 @@ cards:
 
 
                 Daily AQI is: <font size = 3px color = green> {{
-                states('sensor.epa_air_quality_daily_aqi') }} </font></center>
+                states('sensor.epa_air_quality_~location~_daily_aqi') }} </font></center>
           - type: conditional
             conditions:
               - condition: state
-                entity: sensor.epa_air_quality_daily_health_advice
+                entity: sensor.epa_air_quality_~location~_daily_health_advice
                 state_not: unknown
               - condition: state
-                entity: sensor.epa_air_quality_daily_health_advice
+                entity: sensor.epa_air_quality_~location~_daily_health_advice
                 state_not: unavailable
               - condition: state
-                entity: sensor.epa_air_quality_daily_health_advice
+                entity: sensor.epa_air_quality_~location~_daily_health_advice
                 state: Fair
             card:
               type: markdown
@@ -178,17 +178,17 @@ cards:
 
 
                 Daily AQI is: <font size = 3px color = yellow> {{
-                states('sensor.epa_air_quality_daily_aqi') }} </font></center>
+                states('sensor.epa_air_quality_~location~_daily_aqi') }} </font></center>
           - type: conditional
             conditions:
               - condition: state
-                entity: sensor.epa_air_quality_daily_health_advice
+                entity: sensor.epa_air_quality_~location~_daily_health_advice
                 state_not: unknown
               - condition: state
-                entity: sensor.epa_air_quality_daily_health_advice
+                entity: sensor.epa_air_quality_~location~_daily_health_advice
                 state_not: unavailable
               - condition: state
-                entity: sensor.epa_air_quality_daily_health_advice
+                entity: sensor.epa_air_quality_~location~_daily_health_advice
                 state: Poor
             card:
               type: markdown
@@ -200,17 +200,17 @@ cards:
 
 
                 Daily AQI is: <font size = 3px color = orange> {{
-                states('sensor.epa_air_quality_daily_aqi') }} </font></center>
+                states('sensor.epa_air_quality_~location~_daily_aqi') }} </font></center>
           - type: conditional
             conditions:
               - condition: state
-                entity: sensor.epa_air_quality_daily_health_advice
+                entity: sensor.epa_air_quality_~location~_daily_health_advice
                 state_not: unknown
               - condition: state
-                entity: sensor.epa_air_quality_daily_health_advice
+                entity: sensor.epa_air_quality_~location~_daily_health_advice
                 state_not: unavailable
               - condition: state
-                entity: sensor.epa_air_quality_daily_health_advice
+                entity: sensor.epa_air_quality_~location~_daily_health_advice
                 state: Very poor
             card:
               type: markdown
@@ -222,17 +222,17 @@ cards:
 
 
                 Daily AQI is: <font size = 3px color = red> {{
-                states('sensor.epa_air_quality_daily_aqi') }} </font></center>
+                states('sensor.epa_air_quality_~location~_daily_aqi') }} </font></center>
           - type: conditional
             conditions:
               - condition: state
-                entity: sensor.epa_air_quality_daily_health_advice
+                entity: sensor.epa_air_quality_~location~_daily_health_advice
                 state_not: unknown
               - condition: state
-                entity: sensor.epa_air_quality_daily_health_advice
+                entity: sensor.epa_air_quality_~location~_daily_health_advice
                 state_not: unavailable
               - condition: state
-                entity: sensor.epa_air_quality_daily_health_advice
+                entity: sensor.epa_air_quality_~location~_daily_health_advice
                 state: Extremely poor
             card:
               type: markdown
@@ -244,9 +244,9 @@ cards:
 
 
                 Daily AQI is: <font size = 3px color = purple> {{
-                states('sensor.epa_air_quality_daily_aqi') }} </font></center>
+                states('sensor.epa_air_quality_~location~_daily_aqi') }} </font></center>
       - type: gauge
-        entity: sensor.epa_air_quality_daily_pm2_5
+        entity: sensor.epa_air_quality_~location~_daily_pm2_5
         max: 500
         needle: true
         segments:

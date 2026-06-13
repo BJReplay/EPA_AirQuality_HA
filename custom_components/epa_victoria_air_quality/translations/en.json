@@ -1,10 +1,14 @@
 {
   "config": {
+    "abort": {
+      "not_reconfigured": "API key unchanged",
+      "reauth_already_in_progress": "Reauthentication is already in progress",
+      "reauth_successful": "Reauthentication was successful",
+      "reconfigured": "Reconfiguration was successful"
+    },
     "error": {
       "already_configured_location": "This location is already configured",
       "bad_api": "Unable to retrieve Location List from EPA - probably bad API Key",
-      "bad_location": "Unsupported Latitude / Longitude",
-      "cannot_connect": "Cannot connect",
       "key_changed": "API key has changed after validation",
       "unknown": "Unknown error"
     },
@@ -13,60 +17,103 @@
         "data": {
           "api_key": "API Key",
           "aqi_source": "Primary AQI Source",
-          "choose_site": "Choose EPA Site",
-          "latitude": "Latitude",
-          "longitude": "Longitude",
           "site_id": "EPA Site ID"
+        },
+        "data_description": {
+          "api_key": "Enter your API key provided by EPA Victoria.",
+          "aqi_source": "Choose whether primary AQI sensors are sourced from PM2.5 or Overall AQI.",
+          "site_id": "Select the EPA Victoria location, or leave as is to use the nearest station."
         },
         "description": "Latitude and longitude will be used to find the nearest EPA air quality monitoring station to obtain air quality data for your location.\n\nThe default values come from your homeassistant \"Home\" zone (See Settings/Areas & Zones/Zones).",
         "title": "Set up EPA (Victoria) Air Monitoring"
       },
-      "user": {
+      "reauth_confirm": {
+        "data": {
+          "api_key": "API Key"
+        },
+        "data_description": {
+          "api_key": "Enter your API key provided by EPA Victoria."
+        },
+        "description": "Update your EPA API key. This updates all EPA Victoria instances that currently use the same key.",
+        "title": "Reauthenticate EPA (Victoria) Air Monitoring"
+      },
+      "reconfigure_confirm": {
         "data": {
           "api_key": "API Key",
-          "aqi_source": "Primary AQI Source",
-          "choose_site": "Choose EPA Site",
-          "latitude": "Latitude",
-          "longitude": "Longitude",
-          "site_id": "EPA Site ID"
+          "apply_to_all": "Apply this API key to all instances currently using the same key"
+        },
+        "data_description": {
+          "api_key": "Enter your API key provided by EPA Victoria.",
+          "apply_to_all": "Turn off to update only this instance."
+        },
+        "description": "Update your EPA API key. By default this updates all EPA Victoria instances that currently use the same key.",
+        "title": "Reconfigure EPA (Victoria) Air Monitoring"
+      },
+      "user": {
+        "data": {
+          "api_key": "API Key"
+        },
+        "data_description": {
+          "api_key": "Enter your API key provided by EPA Victoria."
         },
         "description": "You need to sign up for an EPA Developer account as described in the readme and obtain an API Key.",
         "title": "Set up EPA (Victoria) Air Monitoring"
       }
     }
   },
+  "entity": {
+    "sensor": {
+      "daily_aqi_pollutant": {
+        "name": "Daily {pollutant} AQI"
+      },
+      "daily_health_advice": {
+        "name": "Daily {pollutant} Health Advice"
+      },
+      "daily_measurement": {
+        "name": "Daily {pollutant}"
+      },
+      "daily_overall_aqi": {
+        "name": "Daily Overall AQI"
+      },
+      "daily_primary_aqi": {
+        "name": "Daily AQI"
+      },
+      "daily_primary_health_advice": {
+        "name": "Daily Health Advice"
+      },
+      "hourly_aqi_pollutant": {
+        "name": "Hourly {pollutant} AQI"
+      },
+      "hourly_health_advice": {
+        "name": "Hourly {pollutant} Health Advice"
+      },
+      "hourly_measurement": {
+        "name": "Hourly {pollutant}"
+      },
+      "hourly_overall_aqi": {
+        "name": "Hourly Overall AQI"
+      },
+      "hourly_primary_aqi": {
+        "name": "Hourly AQI"
+      },
+      "hourly_primary_health_advice": {
+        "name": "Hourly Health Advice"
+      }
+    }
+  },
   "options": {
     "error": {
-      "already_configured_location": "This location is already configured",
-      "bad_api": "Unable to retrieve Location List from EPA - probably bad API Key",
-      "bad_location": "Unsupported Lat/Lon",
-      "cannot_connect": "Cannot connect",
-      "key_changed": "API Key has changed after validation",
       "unknown": "Unknown error"
     },
     "step": {
       "init": {
         "data": {
-          "api_key": "API Key",
-          "aqi_source": "Primary AQI Source",
-          "choose_site": "Choose EPA Site",
-          "latitude": "Latitude",
-          "longitude": "Longitude",
-          "site_id": "EPA Site ID"
+          "aqi_source": "Primary AQI Source"
         },
-        "description": "Change the API Key if required, latitude and longitude used to find the nearest weather station, or Site ID.",
-        "title": "Configure EPA (Victoria) Air Monitoring"
-      },
-      "location": {
-        "data": {
-          "api_key": "API Key",
-          "aqi_source": "Primary AQI Source",
-          "choose_site": "Choose EPA Site",
-          "latitude": "Latitude",
-          "longitude": "Longitude",
-          "site_id": "EPA Site ID"
+        "data_description": {
+          "aqi_source": "Choose whether primary AQI sensors are sourced from PM2.5 or Overall AQI."
         },
-        "description": "Latitude and longitude will be used to find the nearest EPA air quality monitoring station to obtain air quality data for your location.\n\nThe default values come from your homeassistant \"Home\" zone (See Settings/Areas & Zones/Zones).",
+        "description": "",
         "title": "Configure EPA (Victoria) Air Monitoring"
       }
     }

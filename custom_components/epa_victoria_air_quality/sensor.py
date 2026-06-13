@@ -77,22 +77,31 @@ from .const import (
 )
 from .coordinator import EPADataUpdateCoordinator
 
+PARALLEL_UPDATES = 0
+
 # When enabled, sensor entities always write state updates to Recorder, even if the value has not changed.
 FORCE_UPDATE_SENSOR_HISTORY = False
 
 _LOGGER = logging.getLogger(__name__)
 
 
+def _is_daily_sensor(key: str) -> bool:
+    """Return whether a sensor key represents a daily metric."""
+    return key.endswith("_24h")
+
+
 def _aqi_description(
     key: str,
-    name: str,
+    pollutant: str,
     *,
     entity_registry_enabled_default: bool = True,
 ) -> SensorEntityDescription:
+    daily = _is_daily_sensor(key)
     return SensorEntityDescription(
         key=key,
-        name=name,
-        icon="mdi:air-filter",
+        translation_key="daily_aqi_pollutant" if daily else "hourly_aqi_pollutant",
+        translation_placeholders={"pollutant": pollutant},
+        name=f"{'Daily' if daily else 'Hourly'} {pollutant} AQI",
         device_class=SensorDeviceClass.AQI,
         suggested_display_precision=0,
         state_class=SensorStateClass.MEASUREMENT,
@@ -102,16 +111,18 @@ def _aqi_description(
 
 def _measurement_description(
     key: str,
-    name: str,
+    pollutant: str,
     *,
     device_class: SensorDeviceClass,
     native_unit_of_measurement: str,
     entity_registry_enabled_default: bool = True,
 ) -> SensorEntityDescription:
+    daily = _is_daily_sensor(key)
     return SensorEntityDescription(
         key=key,
-        name=name,
-        icon="mdi:chemical-weapon",
+        translation_key="daily_measurement" if daily else "hourly_measurement",
+        translation_placeholders={"pollutant": pollutant},
+        name=f"{'Daily' if daily else 'Hourly'} {pollutant}",
         device_class=device_class,
         suggested_display_precision=1,
         native_unit_of_measurement=native_unit_of_measurement,
@@ -120,203 +131,221 @@ def _measurement_description(
     )
 
 
+def _health_advice_description(
+    key: str,
+    pollutant: str,
+    *,
+    entity_registry_enabled_default: bool = True,
+) -> SensorEntityDescription:
+    daily = _is_daily_sensor(key)
+    return SensorEntityDescription(
+        key=key,
+        translation_key="daily_health_advice" if daily else "hourly_health_advice",
+        translation_placeholders={"pollutant": pollutant},
+        name=f"{'Daily' if daily else 'Hourly'} {pollutant} Health Advice",
+        entity_registry_enabled_default=entity_registry_enabled_default,
+    )
+
+
+def _primary_aqi_description(key: str) -> SensorEntityDescription:
+    """Build the primary AQI entity description."""
+    daily = _is_daily_sensor(key)
+    return SensorEntityDescription(
+        key=key,
+        translation_key="daily_primary_aqi" if daily else "hourly_primary_aqi",
+        name="Daily AQI" if daily else "Hourly AQI",
+        device_class=SensorDeviceClass.AQI,
+        suggested_display_precision=0,
+        state_class=SensorStateClass.MEASUREMENT,
+    )
+
+
+def _primary_health_advice_description(key: str) -> SensorEntityDescription:
+    """Build the primary health advice entity description."""
+    daily = _is_daily_sensor(key)
+    return SensorEntityDescription(
+        key=key,
+        translation_key=("daily_primary_health_advice" if daily else "hourly_primary_health_advice"),
+        name="Daily Health Advice" if daily else "Hourly Health Advice",
+    )
+
+
+def _overall_aqi_description(
+    key: str,
+    *,
+    entity_registry_enabled_default: bool = True,
+) -> SensorEntityDescription:
+    """Build the overall AQI entity description."""
+    daily = _is_daily_sensor(key)
+    return SensorEntityDescription(
+        key=key,
+        translation_key="daily_overall_aqi" if daily else "hourly_overall_aqi",
+        name="Daily Overall AQI" if daily else "Hourly Overall AQI",
+        device_class=SensorDeviceClass.AQI,
+        suggested_display_precision=0,
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_registry_enabled_default=entity_registry_enabled_default,
+    )
+
+
 SENSORS: dict[str, SensorEntityDescription] = {
-    TYPE_AQI_PM25: SensorEntityDescription(  # Text, so no state class or unit of measurement.
-        key=TYPE_AQI_PM25,
-        translation_key="pm25_aqi",
-        name="Hourly Health Advice",
-        icon="mdi:information-outline",
-    ),
-    TYPE_AQI_PM25_24H: SensorEntityDescription(  # Text, so no state class or unit of measurement.
-        key=TYPE_AQI_PM25_24H,
-        translation_key="aqi_pm25_24h",
-        name="Daily Health Advice",
-        icon="mdi:information-outline",
-    ),
-    TYPE_PM25: SensorEntityDescription(
-        key=TYPE_PM25,
-        translation_key="pm25",
-        name="Hourly PM2.5",
-        icon="mdi:chemical-weapon",
+    TYPE_AQI_PM25: _primary_health_advice_description(TYPE_AQI_PM25),
+    TYPE_AQI_PM25_24H: _primary_health_advice_description(TYPE_AQI_PM25_24H),
+    TYPE_PM25: _measurement_description(
+        TYPE_PM25,
+        "PM2.5",
         device_class=SensorDeviceClass.PM25,
-        suggested_display_precision=1,
         native_unit_of_measurement=CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
-        state_class=SensorStateClass.MEASUREMENT,
     ),
-    TYPE_AQI: SensorEntityDescription(
-        key=TYPE_AQI,
-        translation_key="aqi",
-        name="Hourly AQI",
-        icon="mdi:air-filter",
-        device_class=SensorDeviceClass.AQI,
-        suggested_display_precision=0,
-        state_class=SensorStateClass.MEASUREMENT,
-    ),
-    TYPE_AQI_24H: SensorEntityDescription(
-        key=TYPE_AQI_24H,
-        device_class=SensorDeviceClass.AQI,
-        name="Daily AQI",
-        icon="mdi:air-filter",
-        suggested_display_precision=0,
-        state_class=SensorStateClass.MEASUREMENT,
-    ),
-    TYPE_AQI_OVERALL: _aqi_description(TYPE_AQI_OVERALL, "Hourly Overall AQI"),
-    TYPE_AQI_OVERALL_24H: _aqi_description(TYPE_AQI_OVERALL_24H, "Daily Overall AQI"),
-    TYPE_PM25_AQI_VALUE: _aqi_description(TYPE_PM25_AQI_VALUE, "Hourly PM2.5 AQI"),
-    TYPE_PM25_AQI_VALUE_24H: _aqi_description(TYPE_PM25_AQI_VALUE_24H, "Daily PM2.5 AQI"),
+    TYPE_AQI: _primary_aqi_description(TYPE_AQI),
+    TYPE_AQI_24H: _primary_aqi_description(TYPE_AQI_24H),
+    TYPE_AQI_OVERALL: _overall_aqi_description(TYPE_AQI_OVERALL),
+    TYPE_AQI_OVERALL_24H: _overall_aqi_description(TYPE_AQI_OVERALL_24H),
+    TYPE_PM25_AQI_VALUE: _aqi_description(TYPE_PM25_AQI_VALUE, "PM2.5"),
+    TYPE_PM25_AQI_VALUE_24H: _aqi_description(TYPE_PM25_AQI_VALUE_24H, "PM2.5"),
     TYPE_PM10: _measurement_description(
         TYPE_PM10,
-        "Hourly PM10",
+        "PM10",
         device_class=SensorDeviceClass.PM10,
         native_unit_of_measurement=CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
         entity_registry_enabled_default=False,
     ),
     TYPE_PM10_24H: _measurement_description(
         TYPE_PM10_24H,
-        "Daily PM10",
+        "PM10",
         device_class=SensorDeviceClass.PM10,
         native_unit_of_measurement=CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
         entity_registry_enabled_default=False,
     ),
     TYPE_PM10_AQI_VALUE: _aqi_description(
         TYPE_PM10_AQI_VALUE,
-        "Hourly PM10 AQI",
+        "PM10",
         entity_registry_enabled_default=False,
     ),
     TYPE_PM10_AQI_VALUE_24H: _aqi_description(
         TYPE_PM10_AQI_VALUE_24H,
-        "Daily PM10 AQI",
+        "PM10",
         entity_registry_enabled_default=False,
     ),
-    TYPE_PM10_ADVICE: SensorEntityDescription(
-        key=TYPE_PM10_ADVICE,
-        name="Hourly PM10 Health Advice",
-        icon="mdi:information-outline",
+    TYPE_PM10_ADVICE: _health_advice_description(
+        TYPE_PM10_ADVICE,
+        "PM10",
         entity_registry_enabled_default=False,
     ),
-    TYPE_PM10_ADVICE_24H: SensorEntityDescription(
-        key=TYPE_PM10_ADVICE_24H,
-        name="Daily PM10 Health Advice",
-        icon="mdi:information-outline",
+    TYPE_PM10_ADVICE_24H: _health_advice_description(
+        TYPE_PM10_ADVICE_24H,
+        "PM10",
         entity_registry_enabled_default=False,
     ),
     TYPE_NO2: _measurement_description(
         TYPE_NO2,
-        "Hourly NO2",
+        "NO2",
         device_class=SensorDeviceClass.NITROGEN_DIOXIDE,
         native_unit_of_measurement=CONCENTRATION_PARTS_PER_BILLION,
         entity_registry_enabled_default=False,
     ),
     TYPE_NO2_24H: _measurement_description(
         TYPE_NO2_24H,
-        "Daily NO2",
+        "NO2",
         device_class=SensorDeviceClass.NITROGEN_DIOXIDE,
         native_unit_of_measurement=CONCENTRATION_PARTS_PER_BILLION,
         entity_registry_enabled_default=False,
     ),
     TYPE_NO2_AQI_VALUE: _aqi_description(
         TYPE_NO2_AQI_VALUE,
-        "Hourly NO2 AQI",
+        "NO2",
         entity_registry_enabled_default=False,
     ),
-    TYPE_NO2_ADVICE: SensorEntityDescription(
-        key=TYPE_NO2_ADVICE,
-        name="Hourly NO2 Health Advice",
-        icon="mdi:information-outline",
+    TYPE_NO2_ADVICE: _health_advice_description(
+        TYPE_NO2_ADVICE,
+        "NO2",
         entity_registry_enabled_default=False,
     ),
-    TYPE_NO2_ADVICE_24H: SensorEntityDescription(
-        key=TYPE_NO2_ADVICE_24H,
-        name="Daily NO2 Health Advice",
-        icon="mdi:information-outline",
+    TYPE_NO2_ADVICE_24H: _health_advice_description(
+        TYPE_NO2_ADVICE_24H,
+        "NO2",
         entity_registry_enabled_default=False,
     ),
     TYPE_O3: _measurement_description(
         TYPE_O3,
-        "Hourly O3",
+        "O3",
         device_class=SensorDeviceClass.OZONE,
         native_unit_of_measurement=CONCENTRATION_PARTS_PER_BILLION,
         entity_registry_enabled_default=False,
     ),
     TYPE_O3_24H: _measurement_description(
         TYPE_O3_24H,
-        "Daily O3",
+        "O3",
         device_class=SensorDeviceClass.OZONE,
         native_unit_of_measurement=CONCENTRATION_PARTS_PER_BILLION,
         entity_registry_enabled_default=False,
     ),
     TYPE_O3_AQI_VALUE: _aqi_description(
         TYPE_O3_AQI_VALUE,
-        "Hourly O3 AQI",
+        "O3",
         entity_registry_enabled_default=False,
     ),
-    TYPE_O3_ADVICE: SensorEntityDescription(
-        key=TYPE_O3_ADVICE,
-        name="Hourly O3 Health Advice",
-        icon="mdi:information-outline",
+    TYPE_O3_ADVICE: _health_advice_description(
+        TYPE_O3_ADVICE,
+        "O3",
         entity_registry_enabled_default=False,
     ),
-    TYPE_O3_ADVICE_24H: SensorEntityDescription(
-        key=TYPE_O3_ADVICE_24H,
-        name="Daily O3 Health Advice",
-        icon="mdi:information-outline",
+    TYPE_O3_ADVICE_24H: _health_advice_description(
+        TYPE_O3_ADVICE_24H,
+        "O3",
         entity_registry_enabled_default=False,
     ),
     TYPE_SO2: _measurement_description(
         TYPE_SO2,
-        "Hourly SO2",
+        "SO2",
         device_class=SensorDeviceClass.SULPHUR_DIOXIDE,
         native_unit_of_measurement=CONCENTRATION_PARTS_PER_BILLION,
         entity_registry_enabled_default=False,
     ),
     TYPE_SO2_24H: _measurement_description(
         TYPE_SO2_24H,
-        "Daily SO2",
+        "SO2",
         device_class=SensorDeviceClass.SULPHUR_DIOXIDE,
         native_unit_of_measurement=CONCENTRATION_PARTS_PER_BILLION,
         entity_registry_enabled_default=False,
     ),
     TYPE_SO2_AQI_VALUE: _aqi_description(
         TYPE_SO2_AQI_VALUE,
-        "Hourly SO2 AQI",
+        "SO2",
         entity_registry_enabled_default=False,
     ),
-    TYPE_SO2_ADVICE: SensorEntityDescription(
-        key=TYPE_SO2_ADVICE,
-        name="Hourly SO2 Health Advice",
-        icon="mdi:information-outline",
+    TYPE_SO2_ADVICE: _health_advice_description(
+        TYPE_SO2_ADVICE,
+        "SO2",
         entity_registry_enabled_default=False,
     ),
-    TYPE_SO2_ADVICE_24H: SensorEntityDescription(
-        key=TYPE_SO2_ADVICE_24H,
-        name="Daily SO2 Health Advice",
-        icon="mdi:information-outline",
+    TYPE_SO2_ADVICE_24H: _health_advice_description(
+        TYPE_SO2_ADVICE_24H,
+        "SO2",
         entity_registry_enabled_default=False,
     ),
     TYPE_CO: _measurement_description(
         TYPE_CO,
-        "Hourly CO",
+        "CO",
         device_class=SensorDeviceClass.CO,
         native_unit_of_measurement=CONCENTRATION_PARTS_PER_MILLION,
         entity_registry_enabled_default=False,
     ),
     TYPE_CO_24H: _measurement_description(
         TYPE_CO_24H,
-        "Daily CO",
+        "CO",
         device_class=SensorDeviceClass.CO,
         native_unit_of_measurement=CONCENTRATION_PARTS_PER_MILLION,
         entity_registry_enabled_default=False,
     ),
-    TYPE_CO_ADVICE: SensorEntityDescription(
-        key=TYPE_CO_ADVICE,
-        name="Hourly CO Health Advice",
-        icon="mdi:information-outline",
+    TYPE_CO_ADVICE: _health_advice_description(
+        TYPE_CO_ADVICE,
+        "CO",
         entity_registry_enabled_default=False,
     ),
-    TYPE_CO_ADVICE_24H: SensorEntityDescription(
-        key=TYPE_CO_ADVICE_24H,
-        name="Daily CO Health Advice",
-        icon="mdi:information-outline",
+    TYPE_CO_ADVICE_24H: _health_advice_description(
+        TYPE_CO_ADVICE_24H,
+        "CO",
         entity_registry_enabled_default=False,
     ),
 }
