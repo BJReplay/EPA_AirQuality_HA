@@ -135,6 +135,12 @@ Primary AQI sensors (`Hourly AQI`, `Daily AQI`) include:
 
 ## Examples
 
+The [Air Quality Card for Home Assistant](https://github.com/wander00-1/ha-air-quality-card) available in HACS provides an excellent custom card to display not only the pollution sensors exposed by this integration, but also local weather sensors such as temperature and humidty from either a personal weather station or a weather service.
+
+The example below includes PM2.5 from the EPA, PM10 and CO2 from a local sensor, and internal temperature and humidity.
+
+[<img src="https://github.com/BJReplay/EPA_AirQuality_HA/blob/main/.github/SCREENSHOTS/air-quality-card-example.png">](https://github.com/BJReplay/EPA_AirQuality_HA/blob/main/.github/SCREENSHOTS/air-quality-card-example.png)
+
 If you drop the images (`good-aqi.png`, `fair-aqi.png`, `poor-aqi.png`, `verypoor-aql.png`, and `extremelypoor-aqi.png`) into your `www` directory (or create it, if required), the `sample-card.yaml` will create the sample below.
 
 Add the yaml to a dashboard: you can do this by adding a card to a dashboard, choosing `custom card`, and pasting in the all of contents of `sample-card.yaml` replacing the `type: ""` sample, and before you save the card, hit `Ctrl+F`, find `~location~`, and replace with the location of your sensor - e.g. `melbourne_cbd`.
