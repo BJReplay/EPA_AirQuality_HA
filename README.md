@@ -70,7 +70,7 @@ To switch locations, set up a new service for the different location and then de
 The integration defines a broad entity set, but availability and default visibility depend on what the selected EPA site actually returns.
 
 - Enabled by default: PM2.5 family, primary AQI (`Hourly AQI`, `Daily AQI`), and `Overall AQI`.
-- Disabled-ish by default: PM10/NO2/O3/SO2/CO families.
+- Disabled-ish by default: PM10/NO<sub>2</sub>/O<sub>3</sub>/SO<sub>2</sub>/CO families.
 - If EPA does not provide a pollutant for a location at that time, those entities stay unavailable.
 
 The expression "disabled-ish" refers to integration behaviour that automatically enables entities when a value has been obtained for the location on either first configuration of that location, or at a later date should the capability be added to an EPA location. When a value can be obtained then both hourly and daily entities are enabled for that pollutant reading.
@@ -85,9 +85,9 @@ The expression "disabled-ish" refers to integration behaviour that automatically
 | `Daily Overall AQI` | Highest daily AQI sub-index across available pollutants. |
 | `Hourly PM2.5 AQI` / `Daily PM2.5 AQI` | PM2.5 AQI sub-index values. |
 | `Hourly PM10 AQI` / `Daily PM10 AQI` | PM10 AQI sub-index values. |
-| `Hourly NO2 AQI` | NO2 AQI sub-index (hourly only). |
-| `Hourly O3 AQI` | O3 AQI sub-index (hourly only). |
-| `Hourly SO2 AQI` | SO2 AQI sub-index (hourly only). |
+| `Hourly NO2 AQI` | NO<sub>2</sub> AQI sub-index (hourly only). |
+| `Hourly O3 AQI` | O<sub>3</sub> AQI sub-index (hourly only). |
+| `Hourly SO2 AQI` | SO<sub>2</sub> AQI sub-index (hourly only). |
 
 CO AQI is not currently provided because the available EPA time series in this integration does not map to a CO AQI sub-index calculation.
 
@@ -97,9 +97,9 @@ CO AQI is not currently provided because the available EPA time series in this i
 | --- | --- | --- | --- |
 | PM2.5 | Yes | Yes | ug/m3 |
 | PM10 | Yes | Yes | ug/m3 |
-| NO2 | Yes | Yes | ppb |
-| O3 | Yes | Yes | ppb |
-| SO2 | Yes | Yes | ppb |
+| NO<sub>2</sub> | Yes | Yes | ppb |
+| O<sub>3</sub> | Yes | Yes | ppb |
+| SO<sub>2</sub> | Yes | Yes | ppb |
 | CO | Yes | Yes | ppm |
 
 ### Health advice entities
@@ -108,9 +108,9 @@ CO AQI is not currently provided because the available EPA time series in this i
 | --- | --- | --- | --- |
 | PM2.5 | Yes | Yes | |
 | PM10 | Yes | Yes | |
-| NO2 | Yes | Yes | |
-| O3 | Yes | Yes | |
-| SO2 | Yes | Yes | |
+| NO<sub>2</sub> | Yes | Yes | |
+| O<sub>3</sub> | Yes | Yes | |
+| SO<sub>2</sub> | Yes | Yes | |
 | CO | Yes | Yes | |
 | Overall health advice | Yes | Yes | Based on PM2.5 or 'worst overall' |
 
@@ -137,11 +137,15 @@ Primary AQI sensors (`Hourly AQI`, `Daily AQI`) include:
 
 The [Air Quality Card for Home Assistant](https://github.com/wander00-1/ha-air-quality-card) available in HACS provides an excellent custom card to display not only the pollution sensors exposed by this integration, but also local weather sensors such as temperature and humidty from either a personal weather station or a weather service.
 
-The example below includes PM2.5 from the EPA, PM10 and CO2 from a local sensor, and internal temperature and humidity.
+The first example below includes PM2.5 from the EPA, PM10 and CO<sub>2</sub> from a local sensor, and internal temperature and humidity, and relative humidity.
 
 [<img src="https://github.com/BJReplay/EPA_AirQuality_HA/blob/main/.github/SCREENSHOTS/air-quality-card-example.png">](https://github.com/BJReplay/EPA_AirQuality_HA/blob/main/.github/SCREENSHOTS/air-quality-card-example.png)
 
-If you drop the images (`good-aqi.png`, `fair-aqi.png`, `poor-aqi.png`, `verypoor-aql.png`, and `extremelypoor-aqi.png`) into your `www` directory (or create it, if required), the `sample-card.yaml` will create the sample below.
+The second example below includes PM2.5, PM10, NO<sub>2</sub>, SO<sub>2</sub>, O<sub>3</sub>, and CO from the EPA, and temperature and humidity from the BOM for Footscray.  This shows you what you can show from a fully featured EPA station.
+
+[<img src="https://github.com/BJReplay/EPA_AirQuality_HA/blob/main/.github/SCREENSHOTS/Footscray-Sample.jpg">](https://github.com/BJReplay/EPA_AirQuality_HA/blob/main/.github/SCREENSHOTS/Footscray-Sample.jpg)
+
+If you drop the images (`good-aqi.png`, `fair-aqi.png`, `poor-aqi.png`, `verypoor-aql.png`, and `extremelypoor-aqi.png`) from the `www` folder of this repository into your `www` directory (or create it, if required), the `sample-card.yaml` will create the sample below.
 
 Add the yaml to a dashboard: you can do this by adding a card to a dashboard, choosing `custom card`, and pasting in the all of contents of `sample-card.yaml` replacing the `type: ""` sample, and before you save the card, hit `Ctrl+F`, find `~location~`, and replace with the location of your sensor - e.g. `melbourne_cbd`.
 
