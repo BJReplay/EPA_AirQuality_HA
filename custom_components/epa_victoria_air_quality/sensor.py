@@ -18,9 +18,6 @@ from homeassistant.const import (
     ATTR_MODEL,
     ATTR_NAME,
     ATTR_SW_VERSION,
-    CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
-    CONCENTRATION_PARTS_PER_BILLION,
-    CONCENTRATION_PARTS_PER_MILLION,
 )
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceEntryType
@@ -76,6 +73,32 @@ from .const import (
     UNTIL,
 )
 from .coordinator import EPADataUpdateCoordinator
+
+try:
+    from homeassistant.const import UnitOfDensity, UnitOfRatio
+except ImportError:
+    # Backward compatibility shim for Home Assistant versions that predate
+    # UnitOfDensity/UnitOfRatio. Keep names aligned with newer HA classes so
+    # the sensor descriptions below can remain unchanged.
+    #
+    # TODO: Remove this fallback after < HA 2026.8 support is no longer needed.
+    # Add a minimum HA version requirement at that point.
+    from homeassistant.const import (
+        CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
+        CONCENTRATION_PARTS_PER_BILLION,
+        CONCENTRATION_PARTS_PER_MILLION,
+    )
+
+    class UnitOfDensity:
+        """Compatibility shim for deprecated density concentration constants."""
+
+        MICROGRAMS_PER_CUBIC_METER = CONCENTRATION_MICROGRAMS_PER_CUBIC_METER
+
+    class UnitOfRatio:
+        """Compatibility shim for deprecated ratio concentration constants."""
+
+        PARTS_PER_BILLION = CONCENTRATION_PARTS_PER_BILLION
+        PARTS_PER_MILLION = CONCENTRATION_PARTS_PER_MILLION
 
 PARALLEL_UPDATES = 0
 
@@ -195,7 +218,7 @@ SENSORS: dict[str, SensorEntityDescription] = {
         TYPE_PM25,
         "PM2.5",
         device_class=SensorDeviceClass.PM25,
-        native_unit_of_measurement=CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
+        native_unit_of_measurement=UnitOfDensity.MICROGRAMS_PER_CUBIC_METER,
     ),
     TYPE_AQI: _primary_aqi_description(TYPE_AQI),
     TYPE_AQI_24H: _primary_aqi_description(TYPE_AQI_24H),
@@ -207,14 +230,14 @@ SENSORS: dict[str, SensorEntityDescription] = {
         TYPE_PM10,
         "PM10",
         device_class=SensorDeviceClass.PM10,
-        native_unit_of_measurement=CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
+        native_unit_of_measurement=UnitOfDensity.MICROGRAMS_PER_CUBIC_METER,
         entity_registry_enabled_default=False,
     ),
     TYPE_PM10_24H: _measurement_description(
         TYPE_PM10_24H,
         "PM10",
         device_class=SensorDeviceClass.PM10,
-        native_unit_of_measurement=CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
+        native_unit_of_measurement=UnitOfDensity.MICROGRAMS_PER_CUBIC_METER,
         entity_registry_enabled_default=False,
     ),
     TYPE_PM10_AQI_VALUE: _aqi_description(
@@ -241,14 +264,14 @@ SENSORS: dict[str, SensorEntityDescription] = {
         TYPE_NO2,
         "NO2",
         device_class=SensorDeviceClass.NITROGEN_DIOXIDE,
-        native_unit_of_measurement=CONCENTRATION_PARTS_PER_BILLION,
+        native_unit_of_measurement=UnitOfRatio.PARTS_PER_BILLION,
         entity_registry_enabled_default=False,
     ),
     TYPE_NO2_24H: _measurement_description(
         TYPE_NO2_24H,
         "NO2",
         device_class=SensorDeviceClass.NITROGEN_DIOXIDE,
-        native_unit_of_measurement=CONCENTRATION_PARTS_PER_BILLION,
+        native_unit_of_measurement=UnitOfRatio.PARTS_PER_BILLION,
         entity_registry_enabled_default=False,
     ),
     TYPE_NO2_AQI_VALUE: _aqi_description(
@@ -270,14 +293,14 @@ SENSORS: dict[str, SensorEntityDescription] = {
         TYPE_O3,
         "O3",
         device_class=SensorDeviceClass.OZONE,
-        native_unit_of_measurement=CONCENTRATION_PARTS_PER_BILLION,
+        native_unit_of_measurement=UnitOfRatio.PARTS_PER_BILLION,
         entity_registry_enabled_default=False,
     ),
     TYPE_O3_24H: _measurement_description(
         TYPE_O3_24H,
         "O3",
         device_class=SensorDeviceClass.OZONE,
-        native_unit_of_measurement=CONCENTRATION_PARTS_PER_BILLION,
+        native_unit_of_measurement=UnitOfRatio.PARTS_PER_BILLION,
         entity_registry_enabled_default=False,
     ),
     TYPE_O3_AQI_VALUE: _aqi_description(
@@ -299,14 +322,14 @@ SENSORS: dict[str, SensorEntityDescription] = {
         TYPE_SO2,
         "SO2",
         device_class=SensorDeviceClass.SULPHUR_DIOXIDE,
-        native_unit_of_measurement=CONCENTRATION_PARTS_PER_BILLION,
+        native_unit_of_measurement=UnitOfRatio.PARTS_PER_BILLION,
         entity_registry_enabled_default=False,
     ),
     TYPE_SO2_24H: _measurement_description(
         TYPE_SO2_24H,
         "SO2",
         device_class=SensorDeviceClass.SULPHUR_DIOXIDE,
-        native_unit_of_measurement=CONCENTRATION_PARTS_PER_BILLION,
+        native_unit_of_measurement=UnitOfRatio.PARTS_PER_BILLION,
         entity_registry_enabled_default=False,
     ),
     TYPE_SO2_AQI_VALUE: _aqi_description(
@@ -328,14 +351,14 @@ SENSORS: dict[str, SensorEntityDescription] = {
         TYPE_CO,
         "CO",
         device_class=SensorDeviceClass.CO,
-        native_unit_of_measurement=CONCENTRATION_PARTS_PER_MILLION,
+        native_unit_of_measurement=UnitOfRatio.PARTS_PER_MILLION,
         entity_registry_enabled_default=False,
     ),
     TYPE_CO_24H: _measurement_description(
         TYPE_CO_24H,
         "CO",
         device_class=SensorDeviceClass.CO,
-        native_unit_of_measurement=CONCENTRATION_PARTS_PER_MILLION,
+        native_unit_of_measurement=UnitOfRatio.PARTS_PER_MILLION,
         entity_registry_enabled_default=False,
     ),
     TYPE_CO_ADVICE: _health_advice_description(
