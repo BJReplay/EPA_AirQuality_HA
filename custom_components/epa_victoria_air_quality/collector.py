@@ -262,7 +262,7 @@ class Collector:
         session = self._session
         if session is not None and self.latitude != 0 and self.longitude != 0:
             url = f"{URL_BASE}{URL_FIND_SITE}[{self.latitude},{self.longitude}]"
-            response = await session.get(url, headers=self.headers, ssl=False)
+            response = await session.get(url, headers=self.headers)
 
             if response is not None and response.status == 200:
                 self.location_data = await response.json()
@@ -284,7 +284,7 @@ class Collector:
         session = self._session
         if session is not None and self.latitude != 0 and self.longitude != 0:
             url = f"{URL_BASE}{URL_LIST_SITE}"
-            response = await session.get(url, headers=self.headers, ssl=False)
+            response = await session.get(url, headers=self.headers)
 
             if response is not None and response.status == 200:
                 temp_loc_list = []
@@ -828,7 +828,7 @@ class Collector:
             }
 
         try:
-            async with session.get(f"{URL_BASE}{URL_LIST_SITE}", headers=self.headers, ssl=False) as resp:
+            async with session.get(f"{URL_BASE}{URL_LIST_SITE}", headers=self.headers) as resp:
                 return {
                     "reachable": True,
                     "response_status": resp.status,
@@ -915,7 +915,7 @@ class Collector:
                     await self.get_location_data()
 
                 _LOGGER.debug("Updating %s observation data", self.site_name)
-                async with session.get(URL_BASE + self.get_location() + URL_PARAMETERS, headers=self.headers, ssl=False) as resp:
+                async with session.get(URL_BASE + self.get_location() + URL_PARAMETERS, headers=self.headers) as resp:
                     self.last_response_status = resp.status
                     if resp.status in (401, 403):
                         self._record_update_result(
